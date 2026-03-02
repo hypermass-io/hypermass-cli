@@ -8,7 +8,20 @@ Hypermass is designed to distribute large files at low latency. Use this CLI too
 ## Quick Start
 
 ### Installation
-Get the right binary - see the Releases page. If your platform missing, please raise a ticket.
+Binary Downloads
+
+You can download the latest pre-compiled binaries for your operating system from the Releases Page.
+
+- Download the archive for your OS (e.g., hypermass_0.1.0_Linux_x86_64.tar.gz).
+- Extract the executable:
+  - Linux/macOS: tar -xzf hypermass_*.tar.gz
+  - Windows: Right-click and "Extract All" on the .zip.
+- Move the hypermass binary to a folder in your PATH (e.g., /usr/local/bin on Linux/macOS).
+
+Verify Installation
+Run the following command to ensure the CLI is installed correctly:
+Bash
+hypermass --version
 
 [//]: # (TODO work in progress!)
 ** Work in progress, check back soon! **
