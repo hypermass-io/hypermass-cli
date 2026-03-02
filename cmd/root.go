@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"hypermass-cli/app_constants"
 	"os"
 
 	"github.com/spf13/cobra"
@@ -13,10 +14,10 @@ var (
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
-	Use:   "Hypermass CLI",
-	Short: "Hypermass client - publish, subscribe and query",
-	Long:  `Hypermass client - publish, subscribe and query streams`,
-
+	Use:     "Hypermass CLI",
+	Short:   "Hypermass client - publish, subscribe and query",
+	Long:    `Hypermass client - publish, subscribe and query streams`,
+	Version: app_constants.HypermassCliVersion,
 	// Uncomment the following line if your bare application
 	// has an action associated with it:
 	// Run: func(cmd *cobra.Command, args []string) { },

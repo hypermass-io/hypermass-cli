@@ -11,6 +11,8 @@ func PrintInfo(configLocation string) {
 	fmt.Printf("---------------------\n")
 
 	fmt.Printf("Version:                   %s\n", app_constants.HypermassCliVersion)
+	fmt.Printf("Build date:                %s\n", app_constants.BuildDate)
+	fmt.Printf("Commit:                    %s\n", app_constants.Commit)
 	fmt.Printf("HypermassConfig Location:  %s\n", configLocation)
 }
 
