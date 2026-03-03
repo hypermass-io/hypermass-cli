@@ -3,53 +3,32 @@ The official command-line interface for **Hypermass**, the high-performance data
 
 Hypermass is designed to distribute large files at low latency. Use this CLI tool to subscribe and publish your data.
 
-
-
 ## Quick Start
+You can download the latest pre-compiled binaries for your operating system from the [Releases Page](https://github.com/hypermass-io/hypermass-cli/releases).
 
-### Installation
-Binary Downloads
+These can be run directly in the terminal, or installed - Installation instructions here [Installation Guide](https://docs.hypermass.io/docs/cli/download-and-install).
 
-You can download the latest pre-compiled binaries for your operating system from the Releases Page.
-
-- Download the archive for your OS (e.g., hypermass_0.1.0_Linux_x86_64.tar.gz).
-- Extract the executable:
-  - Linux/macOS: tar -xzf hypermass_*.tar.gz
-  - Windows: Right-click and "Extract All" on the .zip.
-- Move the hypermass binary to a folder in your PATH (e.g., /usr/local/bin on Linux/macOS).
-
-Verify Installation
-Run the following command to ensure the CLI is installed correctly:
-Bash
-hypermass --version
-
-[//]: # (TODO work in progress!)
-** Work in progress, check back soon! **
-
-If you're a linux user, mark the binary as executable;
-```bash
-chmod +x ./hypermass
-```
-
-[//]: # (TODO work in progress!)
-** Work in progress, check back soon! **
-
-There's no installation as such, however you will need to initialise the configuration directory on the first run. 
-This will prompt you to enter credentials from your account.
+## Initialising the configuration
+You will need to initialise the configuration directory on the first run. 
+This will prompt you to enter credentials from your account (you can create one here if you have signed up: https://hypermass.io/access-keys).
 
 Note: if you have a stream in mind to test with, then grab the "key" from the subscribe page of that stream and have it 
-ready. You can drop it into "init" and get started faster. 
+ready. You can drop it into "init" and get started faster.
 ```bash
 ./hypermass init
 ```
+Input the appropriate data as prompted.
 
-You can print out the configuration with this command;
+You can print out the configuration location with this command;
 ```bash
 ./hypermass info
 ```
 
-You can now edit the "hypermass-config.yaml" however you need - we advise leaving the auth.yml alone unless you want to 
-change keys.
+You can now edit the "hypermass-config.yaml" however you need. Full configuration guide here [Installation Guide](https://docs.hypermass.io/docs/cli/configuration).
+You may want to back up the hypermass-config.yaml files used as part of deployments (e.g. in a git repo) - it's plain text and contains no security details. 
+
+We advise leaving the auth.yml alone unless you want to change keys. We advise against backing the key value up for 
+security reasons, but it's easy enough to generate a new key here: https://hypermass.io/access-keys.
 
 ### Subscribing to Data
 The hypermass-config.yaml configuration file tells the hypermass cli command what to subscribe to and where to put the 
