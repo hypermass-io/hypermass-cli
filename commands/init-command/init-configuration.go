@@ -36,8 +36,8 @@ func initialiseConfiguration() {
 
 	var subscriptions []config.SubscriptionConfiguration
 	if subscribeKeysInput != "" {
-		for _, cleanedKey := range strings.Split(subscribeKeysInput, ",") {
-			strings.TrimSpace(cleanedKey)
+		for _, rawKey := range strings.Split(subscribeKeysInput, ",") {
+			cleanedKey := strings.TrimSpace(rawKey)
 
 			if len(cleanedKey) > 0 {
 
