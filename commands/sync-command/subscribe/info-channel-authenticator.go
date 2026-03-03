@@ -45,7 +45,7 @@ func GetAuthorizedSubscriptionUrl(config config.HypermassConfig, streamId string
 		if resp.StatusCode == 402 {
 			return "", &app_errors.InsufficientAllowanceError{Message: "insufficient allowance to subscribe to this feed"}
 		} else {
-			log.Println("Failed to authenticate, please check that your API key is valid")
+			log.Println("Failed to authenticate, please check that your API key is valid, code:", resp.StatusCode)
 			os.Exit(1)
 		}
 	}

@@ -1,8 +1,8 @@
 package app_constants
 
 // BulkAuthenticationApiUrl is the first URL called in interactions with the Hypermass API - it will
-var BulkAuthenticationApiUrl string = "https://auth.hypermass.io/api/data/bulk/authorise/infochannel/"
-var PublicApiUrl string = "https://api.hypermass.io/api/"
+var BulkAuthenticationApiUrl string = "https://auth.hypermass.io/api/data/bulk/authorise/infochannel"
+var PublicApiUrl string = "https://api.hypermass.io/api"
 
 // These will be populated by the linker at build time
 var HypermassCliVersion string = "v0.0.0-dev"

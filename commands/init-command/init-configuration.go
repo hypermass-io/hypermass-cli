@@ -28,7 +28,7 @@ func initialiseConfiguration() {
 
 	reader := bufio.NewReader(os.Stdin)
 
-	apiKey := promptUser(reader, "Please enter your API key (create in settings at https://hypermass.io/api-keys):", "")
+	apiKey := promptUser(reader, "Please enter your API key (create in settings at https://hypermass.io/access-keys):", "")
 
 	defaultFolder := filepath.Join(usr.HomeDir, "hypermass")
 	hotfolderDirectoryInput := promptUser(reader, fmt.Sprintf("Please enter your Hypermass hotfolder directory (leave blank for default %s):", defaultFolder), defaultFolder)
