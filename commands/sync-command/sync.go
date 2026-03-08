@@ -5,6 +5,7 @@ import (
 	"hypermass-cli/commands/sync-command/publish"
 	"hypermass-cli/commands/sync-command/subscribe/subscription"
 	"hypermass-cli/config"
+	"hypermass-cli/config/synclock"
 	"log"
 	"os"
 	"os/signal"
@@ -13,6 +14,12 @@ import (
 )
 
 func SyncRunner(hypermassProfile config.HypermassProfile) {
+	controlServer, _ := synclock.NewControlServer()
+	err := controlServer.Start()
+	if err != nil {
+		log.Fatalf("unable to start control server for sync command: %v", err)
+	}
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
