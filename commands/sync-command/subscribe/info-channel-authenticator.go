@@ -16,7 +16,7 @@ type AuthResponse struct {
 	ConnectionURL string `json:"connectionUrl"`
 }
 
-func GetAuthorizedSubscriptionUrl(config config.HypermassConfig, streamId string, lastPayloadId string) (string, error) {
+func GetAuthorizedSubscriptionUrl(auth config.HypermassAuth, streamId string, lastPayloadId string) (string, error) {
 
 	authenticationUrl := app_constants.GetBulkAuthenticationApiUrl(streamId, lastPayloadId)
 
@@ -29,7 +29,7 @@ func GetAuthorizedSubscriptionUrl(config config.HypermassConfig, streamId string
 	}
 
 	// Add the Authorization header
-	req.Header.Set("Authorization", "Bearer "+config.Token)
+	req.Header.Set("Authorization", "Bearer "+auth.Token)
 	req.Header.Set("User-Agent", "hypermass-cli/"+app_constants.HypermassCliVersion)
 
 	// Send the request

@@ -17,7 +17,7 @@ func InitPrompt() {
 	if config.ExistingConfigurationPath() {
 		configPath := config.CreateOrGetConfigPath()
 
-		fmt.Printf("Configuration already exists (%s), try running 'hypermass about' for more info", configPath)
+		fmt.Printf("Configuration already exists (%s), try running 'hypermass info' for more info\n", configPath)
 	} else {
 		initialiseConfiguration()
 	}
@@ -55,7 +55,6 @@ func initialiseConfiguration() {
 	}
 
 	hypermassConfiguration := config.HypermassConfig{
-		Keyfile:                    apiKey,
 		SubscriptionConfigurations: subscriptions,
 	}
 

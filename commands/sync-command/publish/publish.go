@@ -9,19 +9,19 @@ import (
 )
 
 // LoadPublicationPollersFromSettings loads and starts running the pollers from settings
-func LoadPublicationPollersFromSettings(ctx context.Context, globalConfig config.HypermassConfig) {
+func LoadPublicationPollersFromSettings(ctx context.Context, hypermassProfile config.HypermassProfile) {
 
 	publicationPollers := publication.NewPublicationPollers()
 
-	for _, subscriptionConfig := range globalConfig.PublicationConfigurations {
-		startPoller(ctx, publicationPollers, subscriptionConfig, globalConfig)
+	for _, subscriptionConfig := range hypermassProfile.Configuration.PublicationConfigurations {
+		startPoller(ctx, publicationPollers, subscriptionConfig, hypermassProfile)
 	}
 
 	publicationPollers.WG.Wait()
 }
 
-func startPoller(parentCtx context.Context, publicationPollers *publication.PublicationPollers, publicationConfig config.PublicationConfiguration, globalConfig config.HypermassConfig) {
-	publicationPoller, err := publication.NewPublicationPoller(parentCtx, publicationConfig, globalConfig)
+func startPoller(parentCtx context.Context, publicationPollers *publication.PublicationPollers, publicationConfig config.PublicationConfiguration, hypermassProfile config.HypermassProfile) {
+	publicationPoller, err := publication.NewPublicationPoller(parentCtx, publicationConfig, hypermassProfile)
 
 	if err != nil {
 		log.Println("Unable to initialise stream")

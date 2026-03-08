@@ -23,10 +23,13 @@ type PublicationConfiguration struct {
 	DisposerType    string `yaml:"disposer-type"`
 }
 
-type HypermassConfig struct {
-	Keyfile string `yaml:"keyfile"`
-	Token   string `yaml:"token"`
+// HypermassProfile The full execution profile of the hypermass command, including configuration and authentication data
+type HypermassProfile struct {
+	Configuration HypermassConfig
+	Auth          HypermassAuth
+}
 
+type HypermassConfig struct {
 	SubscriptionConfigurations []SubscriptionConfiguration `yaml:"subscription-targets"`
 	PublicationConfigurations  []PublicationConfiguration  `yaml:"publication-sources"`
 }
@@ -73,8 +76,8 @@ func CreateOrGetConfigPath() string {
 	return cfgRoot
 }
 
-func LoadConfig(testingMode bool) HypermassConfig {
-	var cfg HypermassConfig
+func LoadProfile(testingMode bool) HypermassProfile {
+	var hypermassProfile HypermassProfile
 	var path string
 
 	if testingMode {
@@ -88,13 +91,13 @@ func LoadConfig(testingMode bool) HypermassConfig {
 		log.Fatalf("cannot read config file %s: %s", path, err)
 	}
 
-	if err := yaml.Unmarshal(data, &cfg); err != nil {
+	if err := yaml.Unmarshal(data, &hypermassProfile.Configuration); err != nil {
 		log.Fatalf("invalid YAML in %s: %s", path, err)
 	}
 
-	cfg.Token = LoadSecretKey(testingMode).Token
+	hypermassProfile.Auth = LoadSecretKey(testingMode)
 
-	return cfg
+	return hypermassProfile
 }
 
 func LoadSecretKey(testingMode bool) HypermassAuth {
@@ -116,7 +119,7 @@ func LoadSecretKey(testingMode bool) HypermassAuth {
 		log.Fatalf("invalid YAML in %s: %s", path, err)
 	}
 
-	if !(auth.Type == "bearer-token" || auth.Type == "") {
+	if !(auth.Type == "bearer-token") {
 		log.Fatalf("Unknown auth type: %s", auth.Type)
 	}
 

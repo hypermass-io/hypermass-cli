@@ -27,7 +27,7 @@ type PublicationPoller struct {
 	Ctx      context.Context
 	Cancel   context.CancelFunc
 
-	Configuration            config.HypermassConfig
+	Auth                     config.HypermassAuth
 	PublicationConfiguration config.PublicationConfiguration
 
 	FolderPath string
@@ -37,12 +37,12 @@ type PublicationPoller struct {
 }
 
 // NewPublicationPoller create an active PublicationPoller and starts running it
-func NewPublicationPoller(parentCtx context.Context, publicationConfig config.PublicationConfiguration, hypermassConfig config.HypermassConfig) (*PublicationPoller, error) {
+func NewPublicationPoller(parentCtx context.Context, publicationConfig config.PublicationConfiguration, hypermassProfile config.HypermassProfile) (*PublicationPoller, error) {
 	fmt.Println("Publishing to stream: " + publicationConfig.Key)
 	ctx, cancel := context.WithCancel(parentCtx)
 
 	folderPath := helpers.GetStreamPathFromConfig(publicationConfig.TargetDirectory)
-	streamConfigFromService := publication_helpers.GetConfigurationForStream(hypermassConfig, publicationConfig.Key)
+	streamConfigFromService := publication_helpers.GetConfigurationForStream(hypermassProfile, publicationConfig.Key)
 	directoryError := subscriptionhelpers.InitialiseAndCheckDirectory(folderPath)
 
 	if directoryError != nil {
@@ -56,7 +56,7 @@ func NewPublicationPoller(parentCtx context.Context, publicationConfig config.Pu
 		StreamId:                 publicationConfig.Key,
 		Ctx:                      ctx,
 		Cancel:                   cancel,
-		Configuration:            hypermassConfig,
+		Auth:                     hypermassProfile.Auth,
 		PublicationConfiguration: publicationConfig,
 		FolderPath:               folderPath,
 		Disposer:                 payload_read_disposer.GetPayloadReadDisposer(publicationConfig.DisposerType, publicationConfig.Key, publicationConfig.TargetDirectory),
@@ -105,7 +105,7 @@ func (s *PublicationPoller) handleNextFilesInFolder() *time.Duration {
 	}
 
 	for _, entry := range filesToProcess {
-		uploadOutcome, err := publication_helpers.PublishFileToStream(entry.Path, s.StreamId, s.Configuration.Token)
+		uploadOutcome, err := publication_helpers.PublishFileToStream(entry.Path, s.StreamId, s.Auth.Token)
 
 		if err != nil {
 			var insufficientAllowanceError *app_errors.InsufficientAllowanceError

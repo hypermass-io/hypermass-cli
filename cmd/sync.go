@@ -22,8 +22,8 @@ Similarly publications will take files from a directory and publish them to a st
 
 `,
 	Run: func(cmd *cobra.Command, args []string) {
-		settings := config.LoadConfig(testingMode)
-		sync_command.SyncRunner(settings)
+		hypermassProfile := config.LoadProfile(testingMode)
+		sync_command.SyncRunner(hypermassProfile)
 	},
 }
 

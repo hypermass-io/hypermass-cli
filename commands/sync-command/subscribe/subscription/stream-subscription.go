@@ -24,7 +24,7 @@ type Subscription struct {
 	Ctx      context.Context
 	Cancel   context.CancelFunc
 
-	Configuration             config.HypermassConfig
+	Auth                      config.HypermassAuth
 	SubscriptionConfiguration config.SubscriptionConfiguration
 
 	FolderPath    string
@@ -36,7 +36,7 @@ type Subscription struct {
 	StartPoint string
 }
 
-func NewSubscription(parentCtx context.Context, streamConfig config.SubscriptionConfiguration, loadedConfig config.HypermassConfig) (*Subscription, error) {
+func NewSubscription(parentCtx context.Context, streamConfig config.SubscriptionConfiguration, hypermassProfile config.HypermassProfile) (*Subscription, error) {
 	ctx, cancel := context.WithCancel(parentCtx)
 
 	folderPath := helpers.GetStreamPathFromConfig(streamConfig.TargetDirectory)
@@ -54,7 +54,7 @@ func NewSubscription(parentCtx context.Context, streamConfig config.Subscription
 		StreamId:                  streamConfig.Key,
 		Ctx:                       ctx,
 		Cancel:                    cancel,
-		Configuration:             loadedConfig,
+		Auth:                      hypermassProfile.Auth,
 		SubscriptionConfiguration: streamConfig,
 		FolderPath:                folderPath,
 		LastPayloadId:             lastPayloadId,
@@ -114,7 +114,7 @@ func (s *Subscription) startInfoChannelReader() error {
 
 	//make the initial http request to get the signed websocket URL
 	signedWebsocketUrl, authErr := subscribe.GetAuthorizedSubscriptionUrl(
-		s.Configuration, s.SubscriptionConfiguration.Key, s.LastPayloadId)
+		s.Auth, s.SubscriptionConfiguration.Key, s.LastPayloadId)
 
 	if authErr != nil {
 		return authErr
@@ -189,7 +189,7 @@ func (s *Subscription) StartFileQueueProcessor() {
 					// Process the message
 					fmt.Printf("Received payload %s for stream %s \n", msg.PayloadId, msg.StreamId)
 
-					downloadPayloadErr := subscriptionhelpers.DownloadPayload(s.Configuration, s.FolderPath, s.Writer, msg)
+					downloadPayloadErr := subscriptionhelpers.DownloadPayload(s.Auth, s.FolderPath, s.Writer, msg)
 
 					if downloadPayloadErr != nil {
 						log.Println("Subscription to stream " + s.StreamId + "failed, halting this subscription")

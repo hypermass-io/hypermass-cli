@@ -10,7 +10,7 @@ import (
 	"strconv"
 )
 
-func DownloadPayload(config config.HypermassConfig, folderPath string, writer payload_writers.PayloadWriterStrategy, msg messages.PayloadNotificationMessage) (err error) {
+func DownloadPayload(auth config.HypermassAuth, folderPath string, writer payload_writers.PayloadWriterStrategy, msg messages.PayloadNotificationMessage) (err error) {
 
 	// Create the request
 	req, err := http.NewRequest("GET", msg.DownloadUrl, nil)
@@ -21,7 +21,7 @@ func DownloadPayload(config config.HypermassConfig, folderPath string, writer pa
 	}
 
 	// Add the Authorization header
-	req.Header.Set("Authorization", "Bearer "+config.Token)
+	req.Header.Set("Authorization", "Bearer "+auth.Token)
 
 	// Send the request
 	client := &http.Client{} // Note, this follows redirects by default - we need this to occur!

@@ -12,14 +12,14 @@ import (
 	"syscall"
 )
 
-func SyncRunner(globalConfig config.HypermassConfig) {
+func SyncRunner(hypermassProfile config.HypermassProfile) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	// A WaitGroup is used to block the main function until all background goroutines are done.
 	var wg sync.WaitGroup
-	wg.Go(func() { subscription.LoadSubscriptionsFromSettings(ctx, globalConfig) })
-	wg.Go(func() { publish.LoadPublicationPollersFromSettings(ctx, globalConfig) })
+	wg.Go(func() { subscription.LoadSubscriptionsFromSettings(ctx, hypermassProfile) })
+	wg.Go(func() { publish.LoadPublicationPollersFromSettings(ctx, hypermassProfile) })
 
 	interrupt := make(chan os.Signal, 1)
 	signal.Notify(interrupt, os.Interrupt, syscall.SIGTERM)

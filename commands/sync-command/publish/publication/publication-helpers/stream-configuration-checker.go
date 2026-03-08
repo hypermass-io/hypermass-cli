@@ -17,7 +17,7 @@ type BulkStreamConfiguration struct {
 }
 
 // GetConfigurationForStream retrieve key information about the stream (particularly the type of data)
-func GetConfigurationForStream(globalConfiguration config.HypermassConfig, streamId string) BulkStreamConfiguration {
+func GetConfigurationForStream(hypermassProfile config.HypermassProfile, streamId string) BulkStreamConfiguration {
 	url := app_constants.PublicApiUrl + "/data/bulk/id/" + streamId + "/write-configuration"
 
 	// Create the request
@@ -29,7 +29,7 @@ func GetConfigurationForStream(globalConfiguration config.HypermassConfig, strea
 	}
 
 	// Add the Authorization header
-	req.Header.Set("Authorization", "Bearer "+globalConfiguration.Token)
+	req.Header.Set("Authorization", "Bearer "+hypermassProfile.Auth.Token)
 	req.Header.Set("User-Agent", "hypermass-cli/"+app_constants.HypermassCliVersion)
 
 	// Send the request
