@@ -28,10 +28,10 @@ func initialiseConfiguration() {
 
 	reader := bufio.NewReader(os.Stdin)
 
-	apiKey := promptUser(reader, "Please enter your API key (create in settings at https://hypermass.io/access-keys):", "")
+	apiKey := strings.TrimSpace(promptUser(reader, "Please enter your API key (create in settings at https://hypermass.io/access-keys):", ""))
 
 	defaultFolder := filepath.Join(usr.HomeDir, "hypermass")
-	hotfolderDirectoryInput := promptUser(reader, fmt.Sprintf("Please enter your Hypermass hotfolder directory (leave blank for default %s):", defaultFolder), defaultFolder)
+	hotfolderDirectoryInput := strings.TrimSpace(promptUser(reader, fmt.Sprintf("Please enter your Hypermass hotfolder directory (leave blank for default %s):", defaultFolder), defaultFolder))
 	subscribeKeysInput := promptUser(reader, "Please enter one or more API keys that you'd like to subscribe to initially (comma separated):", "")
 
 	var subscriptions []config.SubscriptionConfiguration
