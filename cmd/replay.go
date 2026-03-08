@@ -6,16 +6,25 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// syncCmd represents the subscribe command
+var payloadId string
+
 var replayCmd = &cobra.Command{
-	Use:   "replay",
+	// The <> brackets tell the user this is a required positional arg
+	Use:   "replay [streamId]",
 	Short: "Replays a subscription from a historic point",
-	Long:  `Replays a subscription from a historic point for an active "sync"`,
+	Long: `Replays a subscription from a historic point for an active "sync" process.
+    
+The 'from-payload-id' is exclusive; the stream will resume with the first payload 
+appearing AFTER the provided ID.`,
+	Args: cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
-		replay_command.Replay()
+		streamId := args[0]
+		replay_command.Replay(streamId, payloadId)
 	},
 }
 
 func init() {
 	rootCmd.AddCommand(replayCmd)
+	replayCmd.Flags().StringVarP(&payloadId, "from-payload-id", "p", "", "The payload Id to reset to")
+	replayCmd.MarkFlagRequired("from-payload-id")
 }

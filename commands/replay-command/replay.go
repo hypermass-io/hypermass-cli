@@ -3,43 +3,26 @@ package replay_command
 import (
 	"fmt"
 	"hypermass-cli/config/synclock"
-	"net/http"
 )
 
-func Replay() {
-	streamKey := "asdablhk"
-	payloadID := "kjasdbna"
-	//TODO the above should be parameters
+func Replay(streamKey string, payloadID string) {
+	params := map[string]string{
+		"streamId":   streamKey,
+		"payloadId":  payloadID,
+		"isEarliest": "true",
+	}
 
-	client, lock, err := synclock.DialSync()
+	result, err := synclock.Dispatch("replay", params)
+
 	if err != nil {
-		fmt.Printf("Hot-reload unavailable: %v\n", err)
-		// TODO possible fallback logic: If sync isn't running, we could manually edit the state.yaml here instead?
+		fmt.Printf("⚠️ Could not contact hypermass sync process - please check that it is running. Error: %v\n", err)
+		// TODO This is where we could put fallback logic to edit the state.yaml manually.
 		return
 	}
 
-	url := fmt.Sprintf("http://127.0.0.1:%d/replay", lock.Port)
-
-	// Create the request
-	req, _ := http.NewRequest("POST", url, nil)
-	req.Header.Set("X-Hypermass-Token", lock.ControlToken)
-
-	// Add our payload data (simplified for now)
-	q := req.URL.Query()
-	q.Add("key", streamKey)
-	q.Add("id", payloadID)
-	req.URL.RawQuery = q.Encode()
-
-	resp, err := client.Do(req)
-	if err != nil {
-		fmt.Printf("Failed to signal sync process: %v\n", err)
-		return
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode == http.StatusOK {
-		fmt.Printf("✅ Replay initiated for stream %s from %s\n", streamKey, payloadID)
+	if result.Success {
+		fmt.Printf("✅ %s\n", result.Message)
 	} else {
-		fmt.Printf("❌ Sync process rejected the replay: %s\n", resp.Status)
+		fmt.Printf("❌ Command rejected: %s\n", result.Message)
 	}
 }

@@ -1,6 +1,7 @@
 package synclock
 
 import (
+	"encoding/json"
 	"fmt"
 	"hypermass-cli/config"
 	"net/http"
@@ -26,10 +27,10 @@ func DialSync() (*http.Client, *SyncLock, error) {
 	}
 
 	client := &http.Client{
-		Timeout: 5 * time.Second,
+		Timeout: 2 * time.Second,
 	}
 
-	// --- Functional Heartbeat Check ---
+	// check for a response on the ping endpoint - is the command server there?
 	url := fmt.Sprintf("http://127.0.0.1:%d/ping", lock.Port)
 	req, _ := http.NewRequest("GET", url, nil)
 	req.Header.Set("X-Hypermass-Token", lock.ControlToken)
@@ -49,4 +50,39 @@ func DialSync() (*http.Client, *SyncLock, error) {
 	// Reset timeout for the actual command execution
 	client.Timeout = 10 * time.Second
 	return client, &lock, nil
+}
+
+// Dispatch sends a command to the running sync process and returns the response.
+// This is the primary helper function for commands like 'replay', 'status', etc.
+func Dispatch(action string, params map[string]string) (*CommandResponse, error) {
+	client, lock, err := DialSync()
+	if err != nil {
+		return nil, err
+	}
+
+	// Build the URL for the universal Command Bus endpoint
+	url := fmt.Sprintf("http://127.0.0.1:%d/cmd", lock.Port)
+	req, _ := http.NewRequest("POST", url, nil)
+	req.Header.Set("X-Hypermass-Token", lock.ControlToken)
+
+	// Query Params contain Command parameters
+	q := req.URL.Query()
+	q.Add("action", action)
+	for k, v := range params {
+		q.Add(k, v)
+	}
+	req.URL.RawQuery = q.Encode()
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to communicate with sync process: %w", err)
+	}
+	defer resp.Body.Close()
+
+	var result CommandResponse
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return nil, fmt.Errorf("sync process returned an invalid response: %w", err)
+	}
+
+	return &result, nil
 }

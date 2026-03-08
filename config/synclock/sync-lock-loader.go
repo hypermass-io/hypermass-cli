@@ -3,6 +3,7 @@ package synclock
 import (
 	"crypto/rand"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"hypermass-cli/config"
 	"log"
@@ -26,6 +27,7 @@ type ControlServer struct {
 	Token  string
 	Port   int
 	Mux    *http.ServeMux
+	Bus    *CommandBus
 	server *http.Server
 }
 
@@ -67,11 +69,7 @@ func (s *ControlServer) Start() error {
 		fmt.Fprint(w, "pong")
 	}))
 
-	s.Mux.HandleFunc("/replay", s.authMiddleware(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		fmt.Fprint(w, "pong")
-		log.Println("REPLAYING!")
-	}))
+	s.registerRoutes()
 
 	s.server = &http.Server{Handler: s.Mux}
 
@@ -96,4 +94,46 @@ func (s *ControlServer) authMiddleware(next http.HandlerFunc) http.HandlerFunc {
 		}
 		next(w, r)
 	}
+}
+
+// Register the universal command handler in ControlServer.Start()
+func (s *ControlServer) registerRoutes() {
+	s.Mux.HandleFunc("/cmd", s.authMiddleware(func(responseWriter http.ResponseWriter, request *http.Request) {
+		// e.g. the action, e.g. "replay"
+		action := request.URL.Query().Get("action")
+		if action == "" {
+			s.jsonError(responseWriter, "missing action parameter", http.StatusBadRequest)
+			return
+		}
+
+		// Map all other query parameters into a simple string map
+		params := make(map[string]string)
+		for k, v := range request.URL.Query() {
+			if k != "action" && len(v) > 0 {
+				params[k] = v[0]
+			}
+		}
+
+		// Dispatch to the Bus and get the response from the worker
+		req := CommandRequest{
+			Command: action,
+			Params:  params,
+		}
+
+		response := s.Bus.Dispatch(req)
+
+		// Send the worker's response back to the CLI as JSON
+		responseWriter.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(responseWriter).Encode(response)
+	}))
+}
+
+// Helper for quick internal errors
+func (s *ControlServer) jsonError(w http.ResponseWriter, msg string, code int) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(code)
+	json.NewEncoder(w).Encode(CommandResponse{
+		Success: false,
+		Message: msg,
+	})
 }
