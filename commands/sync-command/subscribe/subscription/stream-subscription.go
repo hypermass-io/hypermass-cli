@@ -109,7 +109,14 @@ func (s *Subscription) RetryingInfoChannelSubscription() {
 		}
 
 		log.Println("Retrying connection to " + s.StreamId + " in " + duration.String() + "...")
-		time.Sleep(duration)
+
+		select {
+		case <-s.Ctx.Done():
+			// Wake up and exit immediately if Cancel() is called during the sleep
+			return
+		case <-time.After(duration):
+			// Proceed to the next loop iteration
+		}
 	}
 }
 
