@@ -161,7 +161,7 @@ func (s *Subscription) startInfoChannelReader() error {
 		select {
 		case <-s.Ctx.Done():
 			log.Printf("Closing websocket for %s due to context cancellation", s.StreamId)
-			websocketConnection.Close() // This triggers ReadMessage to return err
+			_ = websocketConnection.Close() // This triggers ReadMessage to return err
 		case <-stopWatcher:
 			// The reader finished naturally, no need to force close
 			return
