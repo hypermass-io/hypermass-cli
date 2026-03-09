@@ -4,29 +4,59 @@ import (
 	"log"
 	"os"
 	"path/filepath"
-	"strings"
+
+	"gopkg.in/yaml.v3"
 )
 
-func ReadLastPayloadId(filePath string) string {
-	lastPayloadFilePath := filepath.Join(filePath, ".hypermass", "last_payload")
+// CurrentStateVersion allows for future upcasters
+const CurrentStateVersion = 1
 
-	data, err := os.ReadFile(lastPayloadFilePath)
-
-	if err != nil {
-		log.Println("Unable to resolve lastPayloadFile: ", lastPayloadFilePath)
-	}
-
-	return strings.TrimSpace(string(data))
+type SubscriptionState struct {
+	Version       int    `yaml:"version"`
+	LastPayloadId string `yaml:"last_payload_id"`
 }
 
-func WriteLastPayloadId(filePath string, lastPayloadId string) error {
-	lastPayloadFilePath := filepath.Join(filePath, ".hypermass", "last_payload")
+func ReadLastPayloadId(basePath string) string {
+	stateFilePath := filepath.Join(basePath, ".hypermass", "state.yaml")
 
-	data := []byte(lastPayloadId)
-	err := os.WriteFile(lastPayloadFilePath, data, 0644)
-
+	data, err := os.ReadFile(stateFilePath)
 	if err != nil {
-		log.Println("Unable to resolve lastPayloadFile: ", lastPayloadFilePath)
+		// If file doesn't exist, return the magic string "latest" to grab only the latest file
+		return "latest"
+	}
+
+	var state SubscriptionState
+	err = yaml.Unmarshal(data, &state)
+	if err != nil {
+		log.Printf("⚠️ Warning: Could not parse state file at %s: %v", stateFilePath, err)
+		return ""
+	}
+
+	return state.LastPayloadId
+}
+
+func WriteLastPayloadId(basePath string, lastPayloadId string) error {
+	stateDir := filepath.Join(basePath, ".hypermass")
+	stateFilePath := filepath.Join(stateDir, "state.yaml")
+
+	// Ensure the directory exists (in case it was deleted)
+	if _, err := os.Stat(stateDir); os.IsNotExist(err) {
+		_ = os.MkdirAll(stateDir, 0755)
+	}
+
+	state := SubscriptionState{
+		Version:       CurrentStateVersion,
+		LastPayloadId: lastPayloadId,
+	}
+
+	data, err := yaml.Marshal(&state)
+	if err != nil {
+		return err
+	}
+
+	err = os.WriteFile(stateFilePath, data, 0644)
+	if err != nil {
+		log.Printf("❌ Unable to write state file: %v", err)
 		return err
 	}
 
