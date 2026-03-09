@@ -4,12 +4,13 @@ import (
 	"context"
 	"hypermass-cli/commands/sync-command/publish/publication"
 	"hypermass-cli/config"
+	"hypermass-cli/config/synclock"
 	"log"
 	"os"
 )
 
 // LoadPublicationPollersFromSettings loads and starts running the pollers from settings
-func LoadPublicationPollersFromSettings(ctx context.Context, hypermassProfile config.HypermassProfile) {
+func LoadPublicationPollersFromSettings(ctx context.Context, hypermassProfile config.HypermassProfile, commandBus *synclock.CommandBus) {
 
 	publicationPollers := publication.NewPublicationPollers()
 

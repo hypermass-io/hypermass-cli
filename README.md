@@ -15,13 +15,13 @@ This will prompt you to enter credentials from your account (you can create one 
 Note: if you have a stream in mind to test with, then grab the "key" from the subscribe page of that stream and have it 
 ready. You can drop it into "init" and get started faster.
 ```bash
-./hypermass init
+hypermass init
 ```
 Input the appropriate data as prompted.
 
 You can print out the configuration location with this command;
 ```bash
-./hypermass info
+hypermass info
 ```
 
 The hypermass-config.yaml configuration file tells the hypermass cli command what to subscribe to and where to put the
@@ -40,10 +40,6 @@ If you added a stream key in the init command you're all set (or subsequently co
 Streams that you are subscribed to will appear in;
     <<HOME>>/hypermass/data/subscribe/hypermass-status
     <<HOME>>/hypermass/data/subscribe/arbitrary-name
-
-
-# Deploying on a server
-On a sever you likely want this process running as a persistent service. See here for details: [Install hypermass sync as a service](install-sync-as-a-service.md)
 
 ## Key Features
 * **File-Based Configuration:** Human-readable YAML setup. Easy to back up, version control, etc. No complex database or registry entries required.
