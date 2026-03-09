@@ -147,40 +147,45 @@ func (s *Subscription) startInfoChannelReader() error {
 		}
 	}()
 
-	for {
+	// This goroutine sits and waits specifically for the shutdown signal.
+	// When it gets it, it "kicks" the websocket so the reader below unblocks.
+	stopWatcher := make(chan struct{})
+	go func() {
 		select {
 		case <-s.Ctx.Done():
-			log.Println("Context cancelled, exiting info channel loop.")
-			err := websocketConnection.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
-			if err != nil {
-				log.Println("Error closing websocket connection")
-			}
+			log.Printf("Closing websocket for %s due to context cancellation", s.StreamId)
+			websocketConnection.Close() // This triggers ReadMessage to return err
+		case <-stopWatcher:
+			// The reader finished naturally, no need to force close
+			return
+		}
+	}()
+	defer close(stopWatcher)
 
+	//blocking loop of messages being processed from the websocket
+	for {
+		//ReadMessage is blocking
+		_, message, err := websocketConnection.ReadMessage()
+		if err != nil {
+			log.Println("read message error:", err)
 			return err
+		}
 
-		default:
-			_, message, err := websocketConnection.ReadMessage()
-			if err != nil {
-				log.Println("read message error:", err)
-				return err
-			}
+		data := messages.PayloadNotificationMessage{}
 
-			data := messages.PayloadNotificationMessage{}
+		messageErr := json.Unmarshal(message, &data)
+		if messageErr != nil {
+			log.Println("unmarshalling notification error:", err)
+			return messageErr
+		}
 
-			messageErr := json.Unmarshal(message, &data)
-			if messageErr != nil {
-				log.Println("unmarshalling notification error:", err)
-				return messageErr
-			}
-
-			// Write to the queue, checking for cancellation while blocked
-			select {
-			case <-s.Ctx.Done():
-				// Cancelled while trying to write to the filequeue
-				return nil
-			case s.FileQueue <- data:
-				// Success, no action needed (loop)
-			}
+		// Write to the queue, checking for cancellation while blocked
+		select {
+		case <-s.Ctx.Done():
+			// Cancelled while trying to write to the filequeue
+			return nil
+		case s.FileQueue <- data:
+			// Success, no action needed (loop)
 		}
 	}
 }
