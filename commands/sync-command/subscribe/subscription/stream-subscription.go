@@ -32,7 +32,7 @@ type Subscription struct {
 	FolderPath    string
 	LastPayloadId string
 
-	FileQueue chan messages.PayloadNotificationMessage
+	FileQueue chan *messages.PayloadNotificationMessage
 
 	Writer     payload_writers.PayloadWriterStrategy
 	StartPoint string
@@ -64,7 +64,7 @@ func NewSubscription(parentCtx context.Context, streamConfig config.Subscription
 		SubscriptionConfiguration: streamConfig,
 		FolderPath:                folderPath,
 		LastPayloadId:             lastPayloadId,
-		FileQueue:                 make(chan messages.PayloadNotificationMessage),
+		FileQueue:                 make(chan *messages.PayloadNotificationMessage, 100000),
 		Writer:                    payload_writers.GetPayloadWriter(streamConfig.WriterType, streamConfig.Key),
 		StartPoint:                streamConfig.StartPoint,
 	}
@@ -191,7 +191,7 @@ func (s *Subscription) startInfoChannelReader() error {
 		case <-s.Ctx.Done():
 			// Cancelled while trying to write to the filequeue
 			return nil
-		case s.FileQueue <- data:
+		case s.FileQueue <- &data:
 			// Success, no action needed (loop)
 		}
 	}
@@ -206,7 +206,7 @@ func (s *Subscription) StartFileQueueProcessor() {
 				// Process the message
 				fmt.Printf("Received payload %s for stream %s \n", msg.PayloadId, msg.StreamId)
 
-				downloadPayloadErr := subscriptionhelpers.DownloadPayload(s.Auth, s.FolderPath, s.Writer, msg)
+				downloadPayloadErr := subscriptionhelpers.DownloadPayload(s.Auth, s.FolderPath, s.Writer, *msg)
 
 				if downloadPayloadErr != nil {
 					log.Println("Subscription to stream " + s.StreamId + "failed, halting this subscription")
