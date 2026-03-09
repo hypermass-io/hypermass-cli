@@ -28,5 +28,10 @@ go build -tags development .
 go build -tags local .
 ```
 
-
-
+## Triggering a release
+Manually (change the version as needed);
+```bash
+RELEASE_VERSION="v0.2.0"
+git tag -a $RELEASE_VERSION -m "Release $RELEASE_VERSION"
+git push origin $RELEASE_VERSION
+```
