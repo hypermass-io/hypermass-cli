@@ -14,15 +14,17 @@ import (
 	"hypermass-cli/config"
 	"log"
 	"net/url"
+	"sync"
 	"time"
 
 	"github.com/gorilla/websocket"
 )
 
 type Subscription struct {
-	StreamId string
-	Ctx      context.Context
-	Cancel   context.CancelFunc
+	StreamId  string
+	ParentCtx context.Context
+	Ctx       context.Context
+	Cancel    context.CancelFunc
 
 	Auth                      config.HypermassAuth
 	SubscriptionConfiguration config.SubscriptionConfiguration
@@ -34,9 +36,12 @@ type Subscription struct {
 
 	Writer     payload_writers.PayloadWriterStrategy
 	StartPoint string
+
+	//ProcessorsWG a WG tracking the processors such as RetryingInfoChannelSubscription and StartFileQueueProcessor
+	ProcessorsWG sync.WaitGroup
 }
 
-func NewSubscription(parentCtx context.Context, streamConfig config.SubscriptionConfiguration, hypermassProfile config.HypermassProfile) (*Subscription, error) {
+func NewSubscription(parentCtx context.Context, streamConfig config.SubscriptionConfiguration, auth config.HypermassAuth) (*Subscription, error) {
 	ctx, cancel := context.WithCancel(parentCtx)
 
 	folderPath := helpers.GetStreamPathFromConfig(streamConfig.TargetDirectory)
@@ -52,9 +57,10 @@ func NewSubscription(parentCtx context.Context, streamConfig config.Subscription
 
 	subscription := Subscription{
 		StreamId:                  streamConfig.Key,
+		ParentCtx:                 parentCtx,
 		Ctx:                       ctx,
 		Cancel:                    cancel,
-		Auth:                      hypermassProfile.Auth,
+		Auth:                      auth,
 		SubscriptionConfiguration: streamConfig,
 		FolderPath:                folderPath,
 		LastPayloadId:             lastPayloadId,
@@ -64,8 +70,8 @@ func NewSubscription(parentCtx context.Context, streamConfig config.Subscription
 	}
 
 	//start async subscriber processes
-	subscription.StartFileQueueProcessor()
-	go subscription.RetryingInfoChannelSubscription()
+	subscription.ProcessorsWG.Go(subscription.StartFileQueueProcessor)
+	subscription.ProcessorsWG.Go(subscription.RetryingInfoChannelSubscription)
 
 	return &subscription, nil
 }
@@ -180,34 +186,32 @@ func (s *Subscription) startInfoChannelReader() error {
 }
 
 func (s *Subscription) StartFileQueueProcessor() {
-	go func() {
-		for {
-			select {
-			case msg := <-s.FileQueue:
-				// only respond to known message types
-				if msg.Type == "PayloadNotificationMessage" {
-					// Process the message
-					fmt.Printf("Received payload %s for stream %s \n", msg.PayloadId, msg.StreamId)
+	for {
+		select {
+		case msg := <-s.FileQueue:
+			// only respond to known message types
+			if msg.Type == "PayloadNotificationMessage" {
+				// Process the message
+				fmt.Printf("Received payload %s for stream %s \n", msg.PayloadId, msg.StreamId)
 
-					downloadPayloadErr := subscriptionhelpers.DownloadPayload(s.Auth, s.FolderPath, s.Writer, msg)
+				downloadPayloadErr := subscriptionhelpers.DownloadPayload(s.Auth, s.FolderPath, s.Writer, msg)
 
-					if downloadPayloadErr != nil {
-						log.Println("Subscription to stream " + s.StreamId + "failed, halting this subscription")
-						s.Cancel()
-					}
-
-					writeEtagErr := subscriptionhelpers.WriteLastPayloadId(s.FolderPath, msg.PayloadId)
-
-					if writeEtagErr != nil {
-						log.Println("Failed to record the last payload id (may result in repeated message): ", writeEtagErr)
-						s.Cancel()
-					}
+				if downloadPayloadErr != nil {
+					log.Println("Subscription to stream " + s.StreamId + "failed, halting this subscription")
+					s.Cancel()
 				}
 
-			case <-s.Ctx.Done():
-				fmt.Println("Connection to stream stopped: " + s.StreamId)
-				return
+				writeEtagErr := subscriptionhelpers.WriteLastPayloadId(s.FolderPath, msg.PayloadId)
+
+				if writeEtagErr != nil {
+					log.Println("Failed to record the last payload id (may result in repeated message): ", writeEtagErr)
+					s.Cancel()
+				}
 			}
+
+		case <-s.Ctx.Done():
+			fmt.Println("Connection to stream stopped: " + s.StreamId)
+			return
 		}
-	}()
+	}
 }

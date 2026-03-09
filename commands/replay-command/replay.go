@@ -17,6 +17,8 @@ func Replay(streamKey string, payloadID string) {
 	if err != nil {
 		fmt.Printf("⚠️ Could not contact hypermass sync process - please check that it is running. Error: %v\n", err)
 		// TODO This is where we could put fallback logic to edit the state.yaml manually.
+		//  needs some thought - is this a good idea?
+		//  e.g. how to differentiate latest, earliest and not-yet-initialised
 		return
 	}
 

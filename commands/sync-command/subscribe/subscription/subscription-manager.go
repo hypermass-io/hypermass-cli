@@ -23,7 +23,7 @@ func LoadSubscriptionsFromSettings(parentCtx context.Context, hypermassProfile c
 }
 
 func retrySubscriptionWithTimeoutHandler(parentCtx context.Context, subscriptionPollers *SubscriptionPollers, subscriptionConfig config.SubscriptionConfiguration, hypermassProfile config.HypermassProfile) {
-	subscription, err := NewSubscription(parentCtx, subscriptionConfig, hypermassProfile)
+	subscription, err := NewSubscription(parentCtx, subscriptionConfig, hypermassProfile.Auth)
 
 	if err != nil {
 		log.Println("Unable to initialise stream")
@@ -33,7 +33,7 @@ func retrySubscriptionWithTimeoutHandler(parentCtx context.Context, subscription
 		os.Exit(1)
 	}
 
-	subscriptionPollers.Store(subscriptionConfig.Key, *subscription)
+	subscriptionPollers.Store(subscriptionConfig.Key, subscription)
 }
 
 func registerCommands(bus *synclock.CommandBus, subscriptions *SubscriptionPollers) {
@@ -42,15 +42,16 @@ func registerCommands(bus *synclock.CommandBus, subscriptions *SubscriptionPolle
 	bus.Register("replay", func(req synclock.CommandRequest) synclock.CommandResponse {
 		streamId := req.Params["streamId"]
 		payloadId := req.Params["payloadId"]
-		earliest := req.Params["isEarliest"]
 
 		_, success := subscriptions.Load(streamId)
 		if !success {
 			return synclock.CommandResponse{Success: false, Message: fmt.Sprintf("Stream with id '%s' not found", streamId)}
 		}
 
-		log.Printf("Jumping stream '%s' to payload '%s' - is earliest: [%s]", streamId, payloadId, earliest)
+		subscriptions.ResetToPayloadId(streamId, payloadId)
 
-		return synclock.CommandResponse{Success: true, Message: "Jumped!"}
+		log.Printf("Jumping stream '%s' to payload '%s'", streamId, payloadId)
+
+		return synclock.CommandResponse{Success: true, Message: "Replay triggered"}
 	})
 }
