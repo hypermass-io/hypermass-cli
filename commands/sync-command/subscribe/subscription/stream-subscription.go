@@ -155,7 +155,7 @@ func (s *Subscription) startInfoChannelReader() error {
 	}()
 
 	// This goroutine sits and waits specifically for the shutdown signal.
-	// When it gets it, it "kicks" the websocket so the reader below unblocks.
+	// when/if the context is Done, it "kicks" the websocket so the reader loop (below) unblocks.
 	stopWatcher := make(chan struct{})
 	go func() {
 		select {
