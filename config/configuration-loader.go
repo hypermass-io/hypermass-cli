@@ -76,15 +76,9 @@ func CreateOrGetConfigPath() string {
 	return cfgRoot
 }
 
-func LoadProfile(testingMode bool) HypermassProfile {
+func LoadProfile() HypermassProfile {
 	var hypermassProfile HypermassProfile
-	var path string
-
-	if testingMode {
-		path = filepath.Join(".", "hypermass-config.yaml")
-	} else {
-		path = filepath.Join(CreateOrGetConfigPath(), "hypermass-config.yaml")
-	}
+	path := filepath.Join(CreateOrGetConfigPath(), "hypermass-config.yaml")
 
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -95,20 +89,15 @@ func LoadProfile(testingMode bool) HypermassProfile {
 		log.Fatalf("invalid YAML in %s: %s", path, err)
 	}
 
-	hypermassProfile.Auth = LoadSecretKey(testingMode)
+	hypermassProfile.Auth = LoadSecretKey()
 
 	return hypermassProfile
 }
 
-func LoadSecretKey(testingMode bool) HypermassAuth {
+func LoadSecretKey() HypermassAuth {
 	var auth HypermassAuth
-	var path string
 
-	if testingMode {
-		path = filepath.Join(".", "auth.yaml")
-	} else {
-		path = filepath.Join(CreateOrGetConfigPath(), "auth.yaml")
-	}
+	path := filepath.Join(CreateOrGetConfigPath(), "auth.yaml")
 
 	data, err := os.ReadFile(path)
 	if err != nil {

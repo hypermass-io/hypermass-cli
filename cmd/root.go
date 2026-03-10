@@ -7,11 +7,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var (
-	// TestingMode indicates configuration is in the execution directory
-	testingMode bool = false
-)
-
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
 	Use:     "Hypermass CLI",
@@ -33,5 +28,4 @@ func Execute() {
 }
 
 func init() {
-	rootCmd.PersistentFlags().BoolVar(&testingMode, "test", false, "Testing Mode; get the config from running directory")
 }
