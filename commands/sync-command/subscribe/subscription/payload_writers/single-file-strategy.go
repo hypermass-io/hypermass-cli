@@ -43,10 +43,11 @@ func (s *FilePerPayloadStrategy) WritePayload(resp *http.Response, msg messages.
 		return err
 	}
 
-	defer out.Close()
-
 	// Stream to temp file
 	_, err = io.Copy(out, resp.Body)
+
+	// IMPORTANT: Close it here manually (not a defer) so the Windows files are not locked subsequently.
+	out.Close()
 
 	if err != nil {
 		log.Println(err)
@@ -56,7 +57,7 @@ func (s *FilePerPayloadStrategy) WritePayload(resp *http.Response, msg messages.
 
 	err = updateFileMetadataLastModified(msg.PublishedTimestamp, tempOutputPath)
 	if err != nil {
-		log.Fatalf("Error modifying timestamp, cannot guarentee ordering: %v", err)
+		log.Printf("Error modifying timestamp, cannot guarentee ordering: %v\n", err)
 	}
 
 	err = moveTempToFinalPath(tempOutputPath, finalOutputPath)
@@ -85,17 +86,19 @@ func updateFileMetadataLastModified(publishedTimestamp string, tempOutputPath st
 }
 
 func moveTempToFinalPath(tempPath string, actualPath string) (err error) {
-
-	err = os.Rename(tempPath, actualPath)
-	if err != nil {
-		log.Println(err)
-		log.Println("Unable to move tmp download file (" + tempPath + ") to final file: " + actualPath)
-		return err
+	//a short loop just in case Windows file locking takes a few millis to catch up - waits up to one second
+	for i := 0; i < 10; i++ {
+		err = os.Rename(tempPath, actualPath)
+		if err == nil {
+			// Success - Give the operating system dcache (or equivalent directory cache) time to do its thing -
+			// attempt to ensure visibility ordering exactly matches the call sequence.
+			time.Sleep(10 * time.Millisecond)
+			return nil
+		}
+		time.Sleep(100 * time.Millisecond)
 	}
 
-	//Give the operating system dcache (or equivalent directory cache) time to do its thing - attempt to ensure visibility ordering
-	//exactly matches the call sequence.
-	time.Sleep(10 * time.Millisecond)
-
-	return
+	// If we get here, it means all 10 attempts failed
+	log.Printf("Final attempt to move file failed: %v\n", err)
+	return err
 }

@@ -21,6 +21,11 @@ go build
 ```
 The executable will be called "hypermass"
 
+```bash
+# build for Windows
+GOOS=windows GOARCH=amd64 go build -o hypermass.exe main.go
+```
+
 of similarly for ('develop' for the development test environment or 'local' for local stub testing)
 ```bash
 go build -tags development .
