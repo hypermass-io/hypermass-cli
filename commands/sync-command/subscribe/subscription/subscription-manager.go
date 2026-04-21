@@ -7,6 +7,7 @@ import (
 	"hypermass-cli/config/synclock"
 	"log"
 	"os"
+	"time"
 )
 
 // LoadSubscriptionsFromSettings Subscribe to the specified streams
@@ -16,14 +17,14 @@ func LoadSubscriptionsFromSettings(parentCtx context.Context, hypermassProfile c
 	registerCommands(commandBus, subscriptions)
 
 	for _, subscriptionConfig := range hypermassProfile.Configuration.SubscriptionConfigurations {
-		retrySubscriptionWithTimeoutHandler(parentCtx, subscriptions, subscriptionConfig, hypermassProfile)
+		registerSubscription(parentCtx, subscriptions, subscriptionConfig, hypermassProfile)
 	}
 
 	subscriptions.WG.Wait()
 }
 
-func retrySubscriptionWithTimeoutHandler(parentCtx context.Context, subscriptionPollers *SubscriptionPollers, subscriptionConfig config.SubscriptionConfiguration, hypermassProfile config.HypermassProfile) {
-	subscription, err := NewSubscription(parentCtx, subscriptionConfig, hypermassProfile.Auth)
+func registerSubscription(parentCtx context.Context, subscriptionPollers *SubscriptionPollers, subscriptionConfig config.SubscriptionConfiguration, hypermassProfile config.HypermassProfile) {
+	subscription, err := NewSubscription(parentCtx, subscriptionConfig, hypermassProfile.Auth, time.Duration(0))
 
 	if err != nil {
 		log.Println("Unable to initialise stream")

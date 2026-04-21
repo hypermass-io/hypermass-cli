@@ -37,11 +37,21 @@ type Subscription struct {
 	Writer     payload_writers.PayloadWriterStrategy
 	StartPoint string
 
+	// OnStop is called once when the subscription stops for a non-shutdown reason.
+	OnStop   func(streamId string, reason error)
+	stopOnce sync.Once
+
 	//ProcessorsWG a WG tracking the processors such as RetryingInfoChannelSubscription and StartFileQueueProcessor
 	ProcessorsWG sync.WaitGroup
 }
 
-func NewSubscription(parentCtx context.Context, streamConfig config.SubscriptionConfiguration, auth config.HypermassAuth) (*Subscription, error) {
+func NewSubscription(
+	parentCtx context.Context,
+	streamConfig config.SubscriptionConfiguration,
+	auth config.HypermassAuth,
+	startupDelay time.Duration,
+) (*Subscription, error) {
+
 	ctx, cancel := context.WithCancel(parentCtx)
 
 	folderPath := helpers.GetStreamPathFromConfig(streamConfig.TargetDirectory)
@@ -69,11 +79,29 @@ func NewSubscription(parentCtx context.Context, streamConfig config.Subscription
 		StartPoint:                streamConfig.StartPoint,
 	}
 
-	//start async subscriber processes
-	subscription.ProcessorsWG.Go(subscription.StartFileQueueProcessor)
-	subscription.ProcessorsWG.Go(subscription.RetryingInfoChannelSubscription)
+	go func() {
+		select {
+		case <-ctx.Done():
+			log.Println("Subscription stopped before async pollers started: ", streamConfig.Key)
+			return
+		case <-time.After(startupDelay):
+			//start async subscriber processes
+			subscription.ProcessorsWG.Go(subscription.StartFileQueueProcessor)
+			subscription.ProcessorsWG.Go(subscription.RetryingInfoChannelSubscription)
+		}
+	}()
 
 	return &subscription, nil
+}
+
+// indicates that the subscription is broken and should stop (later to be retried)
+func (s *Subscription) restartSubscriptionWithReason(reason error) {
+	s.stopOnce.Do(func() {
+		if s.OnStop != nil {
+			s.OnStop(s.SubscriptionConfiguration.Key, reason)
+		}
+	})
+	s.Cancel()
 }
 
 func (s *Subscription) RetryingInfoChannelSubscription() {
@@ -204,21 +232,23 @@ func (s *Subscription) StartFileQueueProcessor() {
 			// only respond to known message types
 			if msg.Type == "PayloadNotificationMessage" {
 				// Process the message
-				fmt.Printf("Received payload %s for stream %s \n", msg.PayloadId, msg.StreamId)
+				fmt.Printf("Downloading payload %s for stream %s \n", msg.PayloadId, msg.StreamId)
 
 				downloadPayloadErr := subscriptionhelpers.DownloadPayload(s.Auth, s.FolderPath, s.Writer, *msg)
-
 				if downloadPayloadErr != nil {
-					fmt.Printf("Subscription to stream %s failed, halting this subscription. Error: %s", s.StreamId, downloadPayloadErr)
-					s.Cancel()
+					log.Printf("Failed to download: %s\n", downloadPayloadErr)
+					s.restartSubscriptionWithReason(downloadPayloadErr)
+					return //exit the "StartFileQueueProcessor" loop completely - this instance won't recover
 				}
 
 				writeEtagErr := subscriptionhelpers.WriteLastPayloadId(s.FolderPath, msg.PayloadId)
-
 				if writeEtagErr != nil {
 					log.Println("Failed to record the last payload id (may result in repeated message): ", writeEtagErr)
-					s.Cancel()
+					s.restartSubscriptionWithReason(writeEtagErr)
+					return //exit the "StartFileQueueProcessor" loop completely - this instance won't recover
 				}
+
+				fmt.Printf("Received payload %s for stream %s \n", msg.PayloadId, msg.StreamId)
 			}
 
 		case <-s.Ctx.Done():

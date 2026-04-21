@@ -4,7 +4,9 @@ import (
 	"fmt"
 	subscriptionhelpers "hypermass-cli/commands/sync-command/subscribe/subscription/subscription-helpers"
 	"log"
+	"math/rand"
 	"sync"
+	"time"
 )
 
 type SubscriptionPollers struct {
@@ -22,6 +24,9 @@ func NewSubscriptionPollers() *SubscriptionPollers {
 func (s *SubscriptionPollers) Store(key string, value *Subscription) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
+	value.OnStop = s.handleStoppedSubscriber
+
 	s.data[key] = value
 
 	//adds a block worker for the pollers context, which itself may have many child workers
@@ -53,7 +58,7 @@ func (s *SubscriptionPollers) ResetToPayloadId(streamId string, payloadId string
 		return nil, fmt.Errorf("failed to reset state on disk: %w", err)
 	}
 
-	newSub, err := NewSubscription(oldSub.ParentCtx, oldSub.SubscriptionConfiguration, oldSub.Auth)
+	newSub, err := NewSubscription(oldSub.ParentCtx, oldSub.SubscriptionConfiguration, oldSub.Auth, time.Duration(0))
 	if err != nil {
 		return nil, err
 	}
@@ -62,4 +67,31 @@ func (s *SubscriptionPollers) ResetToPayloadId(streamId string, payloadId string
 
 	log.Printf("✅ Stream %s successfully reset to %s", streamId, payloadId)
 	return newSub, nil
+}
+
+func (s *SubscriptionPollers) handleStoppedSubscriber(streamId string, reason error) {
+	oldSub, exists := s.Load(streamId)
+	if !exists {
+		log.Printf("unable to handle stopped subscription %s - not in SubscriptionPollers store", streamId)
+		return
+	}
+
+	log.Printf("Subscriber for %s stopped, reason: %s", streamId, reason)
+	log.Printf("Resetting stream %s. Purging queue...", streamId)
+
+	newSub, err := NewSubscription(oldSub.ParentCtx, oldSub.SubscriptionConfiguration, oldSub.Auth, secondsWithJitter(60, 5))
+	if err != nil {
+		log.Printf("unable to handle stopped subscription %s - failed to create replacement: %w", streamId, err)
+		return
+	}
+
+	s.Store(streamId, newSub)
+
+	log.Printf("✅ Stream %s successfully recreated", streamId)
+	return
+}
+
+func secondsWithJitter(secondsDuration int, jitterMaxSeconds int) time.Duration {
+	jitter := time.Duration(rand.Intn(jitterMaxSeconds)) * time.Second
+	return time.Duration(secondsDuration)*time.Second + jitter
 }
