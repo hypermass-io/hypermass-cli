@@ -1,6 +1,7 @@
 package subscription_helpers
 
 import (
+	"fmt"
 	"hypermass-cli/commands/sync-command/subscribe/messages"
 	"hypermass-cli/commands/sync-command/subscribe/subscription/payload_writers"
 	"hypermass-cli/config"
@@ -47,7 +48,6 @@ func DownloadPayload(auth config.HypermassAuth, folderPath string, writer payloa
 		log.Println("Account Limits exceeded, please see https://hypermass.io/usage")
 		return err
 	} else {
-		log.Println("Unexpected response " + strconv.Itoa(resp.StatusCode) + " from API, please report this message to support")
-		return err
+		return fmt.Errorf("unexpected response fetching payload %s", strconv.Itoa(resp.StatusCode))
 	}
 }
