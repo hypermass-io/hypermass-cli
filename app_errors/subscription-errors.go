@@ -10,6 +10,14 @@ func (e *InsufficientAllowanceError) Error() string {
 	return e.Message
 }
 
+type DownloadFailedError struct {
+	Message string
+}
+
+func (e *DownloadFailedError) Error() string {
+	return e.Message
+}
+
 type RetryLaterError struct {
 	Message    string
 	RetryAfter time.Duration

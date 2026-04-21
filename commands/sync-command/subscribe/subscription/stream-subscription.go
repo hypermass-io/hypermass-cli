@@ -209,7 +209,7 @@ func (s *Subscription) StartFileQueueProcessor() {
 				downloadPayloadErr := subscriptionhelpers.DownloadPayload(s.Auth, s.FolderPath, s.Writer, *msg)
 
 				if downloadPayloadErr != nil {
-					log.Println("Subscription to stream " + s.StreamId + "failed, halting this subscription")
+					fmt.Printf("Subscription to stream %s failed, halting this subscription. Error: %s", s.StreamId, downloadPayloadErr)
 					s.Cancel()
 				}
 

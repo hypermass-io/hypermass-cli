@@ -2,6 +2,7 @@ package subscription_helpers
 
 import (
 	"fmt"
+	"hypermass-cli/app_errors"
 	"hypermass-cli/commands/sync-command/subscribe/messages"
 	"hypermass-cli/commands/sync-command/subscribe/subscription/payload_writers"
 	"hypermass-cli/config"
@@ -39,14 +40,17 @@ func DownloadPayload(auth config.HypermassAuth, folderPath string, writer payloa
 		err := writer.WritePayload(resp, msg, folderPath)
 
 		if err != nil {
-			os.Exit(1)
+			return &app_errors.DownloadFailedError{
+				Message: fmt.Sprintf("failed to download the payload %s", err),
+			}
 		}
 
 		return nil
 
 	} else if resp.StatusCode == http.StatusPaymentRequired {
-		log.Println("Account Limits exceeded, please see https://hypermass.io/usage")
-		return err
+		return fmt.Errorf("account Limits exceeded, please see https://hypermass.io/usage")
+	} else if resp.StatusCode == http.StatusUnauthorized {
+		return fmt.Errorf("token expired while fetching payload %s", strconv.Itoa(resp.StatusCode))
 	} else {
 		return fmt.Errorf("unexpected response fetching payload %s", strconv.Itoa(resp.StatusCode))
 	}
