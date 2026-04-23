@@ -76,18 +76,27 @@ func (s *SubscriptionPollers) handleStoppedSubscriber(streamId string, reason er
 		return
 	}
 
-	log.Printf("Subscriber for %s stopped, reason: %s", streamId, reason)
-	log.Printf("Resetting stream %s. Purging queue...", streamId)
+	// Add a temporary worker so the main WG cannot run dry while we are switching subscriptions.
+	s.WG.Go(func() {
+		log.Printf("Resetting stream %s. Purging queue...", streamId)
+		oldSub.Cancel()
+		log.Printf("⏳ Waiting for %s cleanup...", streamId)
+		oldSub.ProcessorsWG.Wait()
 
-	newSub, err := NewSubscription(oldSub.ParentCtx, oldSub.SubscriptionConfiguration, oldSub.Auth, secondsWithJitter(60, 5))
-	if err != nil {
-		log.Printf("unable to handle stopped subscription %s - failed to create replacement: %w", streamId, err)
-		return
-	}
+		log.Printf("Subscriber for %s stopped, reason: %s", streamId, reason)
+		log.Printf("Resetting stream %s. Purging queue...", streamId)
 
-	s.Store(streamId, newSub)
+		newSub, err := NewSubscription(oldSub.ParentCtx, oldSub.SubscriptionConfiguration, oldSub.Auth, secondsWithJitter(60, 5))
+		if err != nil {
+			log.Printf("unable to handle stopped subscription %s - failed to create replacement: %w", streamId, err)
+			return
+		}
 
-	log.Printf("✅ Stream %s successfully recreated", streamId)
+		s.Store(streamId, newSub)
+
+		log.Printf("✅ Stream %s successfully recreated", streamId)
+	})
+
 	return
 }
 
