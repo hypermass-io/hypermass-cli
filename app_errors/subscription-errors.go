@@ -11,6 +11,15 @@ func (e *InsufficientAllowanceError) Error() string {
 	return e.Message
 }
 
+// ConnectionLostError indicates that the connection to the server was lost
+type ConnectionLostError struct {
+	Message string
+}
+
+func (e *ConnectionLostError) Error() string {
+	return e.Message
+}
+
 // DownloadFailedError indicates that the download failed
 type DownloadFailedError struct {
 	Message string

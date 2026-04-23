@@ -85,7 +85,7 @@ func (s *SubscriptionPollers) handleRequestRestart(streamId string, reason error
 		return
 	}
 
-	duration := determineDurationForError(streamId, reason)
+	duration := determineDurationForError(reason)
 
 	// Add a temporary worker so the main WG cannot run dry while we are switching subscriptions.
 	s.WG.Go(func() {
@@ -110,18 +110,25 @@ func (s *SubscriptionPollers) handleRequestRestart(streamId string, reason error
 	return
 }
 
-func determineDurationForError(streamId string, err error) time.Duration {
+func determineDurationForError(err error) time.Duration {
 	var insufficientAllowanceError *app_errors.InsufficientAllowanceError
+	var connectionLostError *app_errors.ConnectionLostError
 
-	//default poll behaviour for disconnections should be /fairly/ frequent - e.g. recovering from network loss
-	//this is a balance between responsiveness and preventing "stampede" behaviour
-	duration := (time.Duration(10) * time.Second) + standardJitter()
+	var duration time.Duration
 
 	if errors.As(err, &insufficientAllowanceError) {
 		//only poll for allowance changes every 5 minutes to prevent the service being overwhelmed
 		duration = time.Duration(5) * time.Minute
+	} else if errors.As(err, &connectionLostError) {
+		//connection loss should re-try rapidly, but with higher jitter to avoid stampede
+		duration = (time.Duration(10) * time.Second) + highJitter()
 	} else if err != nil {
-		duration = time.Duration(60) * time.Second
+		//this is a fallback, normally not expecting this to happen
+		duration = time.Duration(60)*time.Second + standardJitter()
+	} else {
+		//default poll behaviour catches all other types of errors.
+		// Fairly frequent (for speedy recovery) without being aggressive
+		duration = (time.Duration(15) * time.Second) + highJitter()
 	}
 
 	return duration
@@ -129,5 +136,10 @@ func determineDurationForError(streamId string, err error) time.Duration {
 
 func standardJitter() time.Duration {
 	const jitterMaxSeconds = 10
+	return time.Duration(rand.Intn(jitterMaxSeconds)) * time.Second
+}
+
+func highJitter() time.Duration {
+	const jitterMaxSeconds = 20
 	return time.Duration(rand.Intn(jitterMaxSeconds)) * time.Second
 }

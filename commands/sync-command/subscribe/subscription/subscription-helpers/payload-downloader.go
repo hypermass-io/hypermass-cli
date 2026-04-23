@@ -28,7 +28,9 @@ func DownloadPayload(auth config.HypermassAuth, folderPath string, writer payloa
 	// Send the request
 	client := &http.Client{} // Note, this follows redirects by default - we need this to occur!
 	resp, err := client.Do(req)
-	defer resp.Body.Close()
+	if resp != nil {
+		defer resp.Body.Close()
+	}
 
 	if err != nil {
 		log.Println(err)
@@ -48,7 +50,7 @@ func DownloadPayload(auth config.HypermassAuth, folderPath string, writer payloa
 		return nil
 
 	} else if resp.StatusCode == http.StatusPaymentRequired {
-		return fmt.Errorf("account Limits exceeded, please see https://hypermass.io/usage")
+		return &app_errors.InsufficientAllowanceError{Message: "account Limits exceeded, please see https://hypermass.io/usage"}
 	} else if resp.StatusCode == http.StatusUnauthorized {
 		return fmt.Errorf("token expired while fetching payload %s", strconv.Itoa(resp.StatusCode))
 	} else {
