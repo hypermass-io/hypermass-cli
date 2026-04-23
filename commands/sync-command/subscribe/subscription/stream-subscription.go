@@ -177,23 +177,57 @@ func (s *Subscription) startInfoChannelReader() error {
 			return err
 		}
 
-		data := messages.PayloadNotificationMessage{}
+		messageType := determineMessageType(message)
 
-		messageErr := json.Unmarshal(message, &data)
-		if messageErr != nil {
-			log.Println("unmarshalling notification error:", err)
-			return messageErr
+		switch messageType {
+		case "PayloadNotificationMessage":
+			err2, done := s.writePayloadMessageToQueue(message)
+			if done {
+				return err2
+			}
+		case "PingPong":
+			_ = s.writePongResponse(websocketConnection)
 		}
 
-		// Write to the queue, checking for cancellation while blocked
-		select {
-		case <-s.Ctx.Done():
-			// Cancelled while trying to write to the filequeue
-			return nil
-		case s.FileQueue <- &data:
-			// Success, no action needed (loop)
-		}
 	}
+}
+
+func (s *Subscription) writePongResponse(websocketConnection *websocket.Conn) error {
+	pong := messages.PingPongResponseMessage{
+		Type: "Pong",
+	}
+
+	pongBytes, err := json.Marshal(pong)
+	if err != nil {
+		log.Printf("failed to marshal pong response for %s: %v", s.StreamId, err)
+		return err
+	}
+
+	if writeErr := websocketConnection.WriteMessage(websocket.TextMessage, pongBytes); writeErr != nil {
+		log.Printf("failed to write pong response for %s: %v", s.StreamId, writeErr)
+		return writeErr
+	}
+	return nil
+}
+
+func (s *Subscription) writePayloadMessageToQueue(message []byte) (error, bool) {
+	data := messages.PayloadNotificationMessage{}
+
+	messageErr := json.Unmarshal(message, &data)
+	if messageErr != nil {
+		log.Println("unmarshalling notification error:", messageErr)
+		return messageErr, true
+	}
+
+	// Write to the queue, checking for cancellation while blocked
+	select {
+	case <-s.Ctx.Done():
+		// Cancelled while trying to write to the filequeue
+		return nil, true
+	case s.FileQueue <- &data:
+		// Success, no action needed (loop)
+	}
+	return nil, false
 }
 
 func (s *Subscription) StartFileQueueProcessor() {
@@ -227,4 +261,16 @@ func (s *Subscription) StartFileQueueProcessor() {
 			return
 		}
 	}
+}
+
+func determineMessageType(message []byte) string {
+	data := messages.GenericTypedMessage{}
+
+	messageErr := json.Unmarshal(message, &data)
+	if messageErr != nil {
+		log.Println("unmarshalling notification error:", messageErr)
+		return "unknown"
+	}
+
+	return data.Type
 }
