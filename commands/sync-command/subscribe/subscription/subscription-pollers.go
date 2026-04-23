@@ -48,6 +48,9 @@ func (s *SubscriptionPollers) ResetToPayloadId(streamId string, payloadId string
 		return nil, fmt.Errorf("stream %s not found", streamId)
 	}
 
+	// Temporary worker to keep the pollers WG alive for the duration of the reset.
+	s.WG.Add(1)
+
 	log.Printf("Resetting stream %s. Purging queue...", streamId)
 	oldSub.Cancel()
 	log.Printf("⏳ Waiting for %s cleanup...", streamId)
@@ -66,6 +69,10 @@ func (s *SubscriptionPollers) ResetToPayloadId(streamId string, payloadId string
 	s.Store(streamId, newSub)
 
 	log.Printf("✅ Stream %s successfully reset to %s", streamId, payloadId)
+
+	// Mark the temporary worker as done
+	s.WG.Done()
+
 	return newSub, nil
 }
 
