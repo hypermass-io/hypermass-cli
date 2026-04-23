@@ -3,9 +3,7 @@ package subscription
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
-	"hypermass-cli/app_errors"
 	"hypermass-cli/commands/sync-command/helpers"
 	"hypermass-cli/commands/sync-command/subscribe"
 	"hypermass-cli/commands/sync-command/subscribe/messages"
@@ -37,9 +35,9 @@ type Subscription struct {
 	Writer     payload_writers.PayloadWriterStrategy
 	StartPoint string
 
-	// OnStop is called once when the subscription stops for a non-shutdown reason.
-	OnStop   func(streamId string, reason error)
-	stopOnce sync.Once
+	// RequestRestart is called once, to requests that this subscription be stopped, and a replacement created after a delay
+	RequestRestart func(streamId string, err error)
+	stopOnce       sync.Once
 
 	//ProcessorsWG a WG tracking the processors such as RetryingInfoChannelSubscription and StartFileQueueProcessor
 	ProcessorsWG sync.WaitGroup
@@ -95,63 +93,36 @@ func NewSubscription(
 }
 
 // indicates that the subscription is broken and should stop (later to be retried)
-func (s *Subscription) restartSubscriptionWithReason(reason error) {
+func (s *Subscription) restartSubscriptionWithReason(err error) {
 	s.stopOnce.Do(func() {
-		if s.OnStop != nil {
-			s.OnStop(s.SubscriptionConfiguration.Key, reason)
+		if s.RequestRestart != nil {
+			s.RequestRestart(s.SubscriptionConfiguration.Key, err)
 		}
 	})
-	s.Cancel()
 }
 
 func (s *Subscription) RetryingInfoChannelSubscription() {
-	for {
-		//connect and receive messages
-		err := s.startInfoChannelReader()
+	//connect and receive messages
+	err := s.startInfoChannelReader()
 
-		//only returns if interrupted
-		fmt.Println("Subscription exited for " + s.StreamId)
+	//only returns if interrupted
+	fmt.Println("Subscription exited for " + s.StreamId)
 
-		//determine if the main process is cancelled or if the executor failed
-		select {
-		case <-s.Ctx.Done():
-			//exit if the parent context is done
-			return
-		default:
-			//otherwise keep looping
-		}
-
-		var insufficientAllowanceError *app_errors.InsufficientAllowanceError
-		//default poll behaviour for disconnections should be fairly frequent - e.g. recovering from network loss
-		duration := time.Duration(10) * time.Second
-
-		if errors.As(err, &insufficientAllowanceError) {
-			//only poll for allowance changes every 5 minutes to prevent the service being overwhelmed
-			duration = time.Duration(5) * time.Minute
-			log.Println("Connection lost for stream "+s.StreamId+": ", err)
-		} else if err != nil {
-			duration = time.Duration(60) * time.Second
-			log.Println("Unable to authenticate to stream "+s.StreamId+", please check access keys: ", err)
-		} else {
-			log.Println("Connection lost for stream "+s.StreamId+": ", err)
-		}
-
-		log.Println("Retrying connection to " + s.StreamId + " in " + duration.String() + "...")
-
-		select {
-		case <-s.Ctx.Done():
-			// Wake up and exit immediately if Cancel() is called during the sleep
-			return
-		case <-time.After(duration):
-			// Proceed to the next loop iteration
-		}
+	//determine if the main process is cancelled or if the executor failed
+	select {
+	case <-s.Ctx.Done():
+		//exit if the parent context is done, no other action needed
+		return
+	default:
+		//otherwise trigger the retry if the connection is lost
+		s.restartSubscriptionWithReason(err)
 	}
 }
 
 // startInfoChannelReader a connection to the infochannel
 // This can be interrupted, in which case it will return without effecting the context
 func (s *Subscription) startInfoChannelReader() error {
-	fmt.Println("Subscribing to stream: " + s.StreamId)
+	fmt.Println("Started subscription to stream: " + s.StreamId)
 
 	//make the initial http request to get the signed websocket URL
 	signedWebsocketUrl, authErr := subscribe.GetAuthorizedSubscriptionUrl(

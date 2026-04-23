@@ -36,22 +36,26 @@ func GetAuthorizedSubscriptionUrl(auth config.HypermassAuth, streamId string, la
 	client := &http.Client{} // follows redirects by default
 	resp, err := client.Do(req)
 	if err != nil {
-		log.Println(err)
-		log.Println("Failed to authenticate, unable to connect to service")
-		os.Exit(1)
+		if resp != nil {
+			log.Printf("authentication failed while connecting to service: status=%d err=%v", resp.StatusCode, err)
+		} else {
+			log.Printf("authentication failed while connecting to service: err=%v", err)
+		}
+		return "", &app_errors.AuthenticationFailedError{Message: "failed to connect to authentication service"}
 	}
 
+	defer resp.Body.Close()
+	body, err := io.ReadAll(resp.Body) // response body is []byte
+
 	if resp.StatusCode != 200 {
+		//or will a 401 reach here?
 		if resp.StatusCode == 402 {
 			return "", &app_errors.InsufficientAllowanceError{Message: "insufficient allowance to subscribe to this feed"}
 		} else {
-			log.Println("Failed to authenticate, please check that your API key is valid, code:", resp.StatusCode)
+			log.Printf("authentication failed while connecting to service: status=%d message=%s", resp.StatusCode, body)
 			os.Exit(1)
 		}
 	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body) // response body is []byte
 
 	var result AuthResponse
 	if err := json.Unmarshal(body, &result); err != nil { // Parse []byte to go struct pointer

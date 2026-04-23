@@ -38,7 +38,7 @@ func SyncRunner(hypermassProfile config.HypermassProfile) {
 
 	select {
 	case <-interrupt:
-		log.Println("OS Interrupt received. Sending cancellation signal to all workers.")
+		log.Println("OS Interrupt received. Exiting.")
 		cancel()
 	}
 

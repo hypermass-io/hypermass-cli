@@ -1,7 +1,9 @@
 package subscription
 
 import (
+	"errors"
 	"fmt"
+	"hypermass-cli/app_errors"
 	subscriptionhelpers "hypermass-cli/commands/sync-command/subscribe/subscription/subscription-helpers"
 	"log"
 	"math/rand"
@@ -25,7 +27,7 @@ func (s *SubscriptionPollers) Store(key string, value *Subscription) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	value.OnStop = s.handleStoppedSubscriber
+	value.RequestRestart = s.handleRequestRestart
 
 	s.data[key] = value
 
@@ -76,38 +78,56 @@ func (s *SubscriptionPollers) ResetToPayloadId(streamId string, payloadId string
 	return newSub, nil
 }
 
-func (s *SubscriptionPollers) handleStoppedSubscriber(streamId string, reason error) {
+func (s *SubscriptionPollers) handleRequestRestart(streamId string, reason error) {
 	oldSub, exists := s.Load(streamId)
 	if !exists {
 		log.Printf("unable to handle stopped subscription %s - not in SubscriptionPollers store", streamId)
 		return
 	}
 
+	duration := determineDurationForError(streamId, reason)
+
 	// Add a temporary worker so the main WG cannot run dry while we are switching subscriptions.
 	s.WG.Go(func() {
-		log.Printf("Resetting stream %s. Purging queue...", streamId)
+		log.Printf("Connection lost for stream %s", oldSub.StreamId)
+
 		oldSub.Cancel()
 		log.Printf("⏳ Waiting for %s cleanup...", streamId)
 		oldSub.ProcessorsWG.Wait()
 
 		log.Printf("Subscriber for %s stopped, reason: %s", streamId, reason)
-		log.Printf("Resetting stream %s. Purging queue...", streamId)
 
-		newSub, err := NewSubscription(oldSub.ParentCtx, oldSub.SubscriptionConfiguration, oldSub.Auth, secondsWithJitter(60, 5))
+		log.Println("Retrying connection to " + oldSub.StreamId + " in " + duration.String() + "...")
+		newSub, err := NewSubscription(oldSub.ParentCtx, oldSub.SubscriptionConfiguration, oldSub.Auth, duration)
 		if err != nil {
 			log.Printf("unable to handle stopped subscription %s - failed to create replacement: %w", streamId, err)
 			return
 		}
 
 		s.Store(streamId, newSub)
-
-		log.Printf("✅ Stream %s successfully recreated", streamId)
 	})
 
 	return
 }
 
-func secondsWithJitter(secondsDuration int, jitterMaxSeconds int) time.Duration {
-	jitter := time.Duration(rand.Intn(jitterMaxSeconds)) * time.Second
-	return time.Duration(secondsDuration)*time.Second + jitter
+func determineDurationForError(streamId string, err error) time.Duration {
+	var insufficientAllowanceError *app_errors.InsufficientAllowanceError
+
+	//default poll behaviour for disconnections should be /fairly/ frequent - e.g. recovering from network loss
+	//this is a balance between responsiveness and preventing "stampede" behaviour
+	duration := (time.Duration(10) * time.Second) + standardJitter()
+
+	if errors.As(err, &insufficientAllowanceError) {
+		//only poll for allowance changes every 5 minutes to prevent the service being overwhelmed
+		duration = time.Duration(5) * time.Minute
+	} else if err != nil {
+		duration = time.Duration(60) * time.Second
+	}
+
+	return duration
+}
+
+func standardJitter() time.Duration {
+	const jitterMaxSeconds = 10
+	return time.Duration(rand.Intn(jitterMaxSeconds)) * time.Second
 }
