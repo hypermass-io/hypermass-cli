@@ -121,7 +121,7 @@ func (s *PublicationPoller) handleNextFilesInFolder() *time.Duration {
 			} else if errors.As(err, &retryLaterError) {
 				//server advises when to retry in this case
 				waitTime = retryLaterError.RetryAfter
-				fmt.Printf("Too soon to upload to stream " + s.StreamId + ", retry in " + waitTime.String())
+				fmt.Println("Too soon to upload to stream " + s.StreamId + ", retry in " + waitTime.String())
 			} else {
 				log.Println("unable to publish to stream "+s.StreamId+": ", err)
 			}
