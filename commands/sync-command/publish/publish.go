@@ -10,7 +10,7 @@ import (
 )
 
 // LoadPublicationPollersFromSettings loads and starts running the pollers from settings
-func LoadPublicationPollersFromSettings(ctx context.Context, hypermassProfile config.HypermassProfile, commandBus *synclock.CommandBus) {
+func LoadPublicationPollersFromSettings(ctx context.Context, hypermassProfile config.HypermassProfile, commandBus *synclock.CommandBus) *publication.PublicationPollers {
 
 	publicationPollers := publication.NewPublicationPollers()
 
@@ -18,7 +18,7 @@ func LoadPublicationPollersFromSettings(ctx context.Context, hypermassProfile co
 		startPoller(ctx, publicationPollers, subscriptionConfig, hypermassProfile)
 	}
 
-	publicationPollers.WG.Wait()
+	return publicationPollers
 }
 
 func startPoller(parentCtx context.Context, publicationPollers *publication.PublicationPollers, publicationConfig config.PublicationConfiguration, hypermassProfile config.HypermassProfile) {
@@ -32,5 +32,5 @@ func startPoller(parentCtx context.Context, publicationPollers *publication.Publ
 		os.Exit(1)
 	}
 
-	publicationPollers.Store(publicationConfig.Key, *publicationPoller)
+	publicationPollers.Store(publicationConfig.Key, publicationPoller)
 }

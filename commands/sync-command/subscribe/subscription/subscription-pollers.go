@@ -44,6 +44,19 @@ func (s *SubscriptionPollers) Load(key string) (*Subscription, bool) {
 	return value, ok
 }
 
+// Snapshot returns a shallow copy snapshot of the map
+func (s *SubscriptionPollers) Snapshot() map[string]*Subscription {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	snapshot := make(map[string]*Subscription, len(s.data))
+	for key, subscription := range s.data {
+		snapshot[key] = subscription
+	}
+
+	return snapshot
+}
+
 func (s *SubscriptionPollers) ResetToPayloadId(streamId string, payloadId string) (*Subscription, error) {
 	oldSub, exists := s.Load(streamId)
 	if !exists {

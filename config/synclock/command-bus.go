@@ -12,7 +12,7 @@ type CommandRequest struct {
 type CommandResponse struct {
 	Success bool
 	Message string
-	Data    interface{}
+	Data    interface{} //TODO - we're not using this yet!
 }
 
 type CommandBus struct {

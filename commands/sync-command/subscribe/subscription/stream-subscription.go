@@ -10,6 +10,7 @@ import (
 	"hypermass-cli/commands/sync-command/subscribe/messages"
 	"hypermass-cli/commands/sync-command/subscribe/subscription/payload_writers"
 	subscriptionhelpers "hypermass-cli/commands/sync-command/subscribe/subscription/subscription-helpers"
+	subscription_status "hypermass-cli/commands/sync-command/subscribe/subscription/subscription-status"
 	"hypermass-cli/config"
 	"log"
 	"net/url"
@@ -42,6 +43,8 @@ type Subscription struct {
 
 	//ProcessorsWG a WG tracking the processors such as RetryingInfoChannelSubscription and StartFileQueueProcessor
 	ProcessorsWG sync.WaitGroup
+
+	ReportingState subscription_status.SubscriptionReportingState
 }
 
 func NewSubscription(
@@ -64,7 +67,7 @@ func NewSubscription(
 		return nil, directoryError
 	}
 
-	subscription := Subscription{
+	subscription := &Subscription{
 		StreamId:                  streamConfig.Key,
 		ParentCtx:                 parentCtx,
 		Ctx:                       ctx,
@@ -76,25 +79,30 @@ func NewSubscription(
 		FileQueue:                 make(chan *messages.PayloadNotificationMessage, 100000),
 		Writer:                    payload_writers.GetPayloadWriter(streamConfig.WriterType, streamConfig.Key),
 		StartPoint:                streamConfig.StartPoint,
+		ReportingState:            subscription_status.NewInitialState(startupDelay),
 	}
 
 	go func() {
 		select {
 		case <-ctx.Done():
 			log.Println("Subscription stopped before async pollers started: ", streamConfig.Key)
+			subscription.ReportingState = subscription_status.NewStoppedState()
 			return
 		case <-time.After(startupDelay):
+			subscription.ReportingState = subscription_status.NewConnectingState()
 			//start async subscriber processes
 			subscription.ProcessorsWG.Go(subscription.StartFileQueueProcessor)
 			subscription.ProcessorsWG.Go(subscription.RetryingInfoChannelSubscription)
 		}
 	}()
 
-	return &subscription, nil
+	return subscription, nil
 }
 
 // indicates that the subscription is broken and should stop (later to be retried)
 func (s *Subscription) restartSubscriptionWithReason(err error) {
+	s.ReportingState = subscription_status.NewRestartingState()
+
 	s.stopOnce.Do(func() {
 		if s.RequestRestart != nil {
 			s.RequestRestart(s.SubscriptionConfiguration.Key, err)
@@ -168,6 +176,7 @@ func (s *Subscription) startInfoChannelReader() error {
 	}()
 	defer close(stopWatcher)
 
+	s.ReportingState = subscription_status.NewConnectedActivityState()
 	//blocking loop of messages being processed from the websocket
 	for {
 		//ReadMessage is blocking
@@ -181,11 +190,13 @@ func (s *Subscription) startInfoChannelReader() error {
 
 		switch messageType {
 		case "PayloadNotificationMessage":
+			s.ReportingState = subscription_status.NewConnectedActivityState()
 			err2, done := s.writePayloadMessageToQueue(message)
 			if done {
 				return err2
 			}
 		case "PingPong":
+			s.ReportingState = subscription_status.NewConnectedActivityState()
 			_ = s.writePongResponse(websocketConnection)
 		}
 
@@ -254,6 +265,7 @@ func (s *Subscription) StartFileQueueProcessor() {
 				}
 
 				fmt.Printf("Received payload %s for stream %s \n", msg.PayloadId, msg.StreamId)
+				s.LastPayloadId = msg.PayloadId
 			}
 
 		case <-s.Ctx.Done():

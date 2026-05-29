@@ -8,6 +8,7 @@ import (
 	"hypermass-cli/commands/sync-command/helpers"
 	"hypermass-cli/commands/sync-command/publish/payload_read_disposer"
 	publication_helpers "hypermass-cli/commands/sync-command/publish/publication/publication-helpers"
+	publication_status "hypermass-cli/commands/sync-command/publish/publication/publication-status"
 	subscriptionhelpers "hypermass-cli/commands/sync-command/subscribe/subscription/subscription-helpers"
 	"hypermass-cli/config"
 	"log"
@@ -34,6 +35,8 @@ type PublicationPoller struct {
 
 	Disposer      payload_read_disposer.PayloadReadDisposerStrategy
 	FileExtension string
+
+	ReportingState publication_status.PublicationReportingState
 }
 
 // NewPublicationPoller create an active PublicationPoller and starts running it
@@ -52,7 +55,7 @@ func NewPublicationPoller(parentCtx context.Context, publicationConfig config.Pu
 		return nil, directoryError
 	}
 
-	subscription := PublicationPoller{
+	publicationPoller := &PublicationPoller{
 		StreamId:                 publicationConfig.Key,
 		Ctx:                      ctx,
 		Cancel:                   cancel,
@@ -61,11 +64,12 @@ func NewPublicationPoller(parentCtx context.Context, publicationConfig config.Pu
 		FolderPath:               folderPath,
 		Disposer:                 payload_read_disposer.GetPayloadReadDisposer(publicationConfig.DisposerType, publicationConfig.Key, publicationConfig.TargetDirectory),
 		FileExtension:            streamConfigFromService.FileExtension,
+		ReportingState:           publication_status.NewInitialState(),
 	}
 
-	go subscription.pollForFiles()
+	go publicationPoller.pollForFiles()
 
-	return &subscription, nil
+	return publicationPoller, nil
 }
 
 // pollForFiles poll for files - poll time can vary based on hypermass feedback. Ctx.Done() interrupts the poller wait.
@@ -73,15 +77,8 @@ func (s *PublicationPoller) pollForFiles() {
 	for {
 		nextDelayDuration := s.handleNextFilesInFolder()
 
-		var nextDelay time.Duration
-		if nextDelayDuration != nil {
-			nextDelay = *nextDelayDuration
-		} else {
-			nextDelay = 5 * time.Second
-		}
-
 		select {
-		case <-time.After(nextDelay):
+		case <-time.After(*nextDelayDuration):
 			// Timer expired, continue polling
 			continue
 		case <-s.Ctx.Done():
@@ -98,32 +95,41 @@ func (s *PublicationPoller) pollForFiles() {
 func (s *PublicationPoller) handleNextFilesInFolder() *time.Duration {
 
 	filesToProcess, err := publication_helpers.FindNextFilesInFolder(s.FolderPath, s.FileExtension, MaxFileSize, MinFileAge)
+	fallbackWaitTime := time.Duration(20) * time.Second
 
 	if err != nil {
 		log.Printf("Error Scanning directory: %s %s \n", s.FolderPath, err)
-		return nil
+		s.ReportingState = publication_status.NewErrorStatus("Error scanning directory", fallbackWaitTime, 0)
+		return &fallbackWaitTime
 	}
 
 	for _, entry := range filesToProcess {
+		s.ReportingState = publication_status.NewPublishingStatus(s.countRemainingFiles())
+
 		uploadOutcome, err := publication_helpers.PublishFileToStream(entry.Path, s.StreamId, s.Auth.Token)
 
 		if err != nil {
 			var insufficientAllowanceError *app_errors.InsufficientAllowanceError
 			var retryLaterError *app_errors.RetryLaterError
 
-			//default retry behaviour for disconnections should be fairly frequent - e.g. recovering from network loss
-			waitTime := time.Duration(60) * time.Second
+			var waitTime time.Duration
 
 			if errors.As(err, &insufficientAllowanceError) {
 				//only retry for allowance changes every 5 minutes to prevent the service being overwhelmed
 				waitTime = time.Duration(5) * time.Minute
 				log.Println("unable to publish to stream "+s.StreamId+": ", err)
+				s.ReportingState = publication_status.NewInsufficientAllowanceStatus(waitTime, s.countRemainingFiles())
 			} else if errors.As(err, &retryLaterError) {
 				//server advises when to retry in this case
 				waitTime = retryLaterError.RetryAfter
 				fmt.Println("Too soon to upload to stream " + s.StreamId + ", retry in " + waitTime.String())
+				s.ReportingState = publication_status.NewWaitingRateLimitedStatus(waitTime, s.countRemainingFiles())
 			} else {
-				log.Println("unable to publish to stream "+s.StreamId+": ", err)
+				//slightly increase the wait time if we're hitting errors so as not to spam the servers
+				waitTime = time.Duration(30) * time.Second
+				message := fmt.Sprintf("unable to publish to stream "+s.StreamId+": ", err)
+				log.Println(message)
+				s.ReportingState = publication_status.NewErrorStatus(message, waitTime, s.countRemainingFiles())
 			}
 
 			log.Printf("Failed to upload payload file (%s) - retrying in: "+waitTime.String(), entry.Path)
@@ -141,9 +147,17 @@ func (s *PublicationPoller) handleNextFilesInFolder() *time.Duration {
 			}
 
 			fmt.Printf("Failed to clean up the uploaded file (%s), further uploads blocked. Please delete manually (poller will retry every 30 seconds): %s \n", entry.Path, err)
-			time.Sleep(30 * time.Second)
+			sleepDuration := 30 * time.Second
+			s.ReportingState = publication_status.NewDeletingFileFailedRetryingStatus(sleepDuration, s.countRemainingFiles())
+			time.Sleep(sleepDuration)
 		}
 	}
 
-	return nil
+	s.ReportingState = publication_status.NewPollingWaitStatus(fallbackWaitTime, s.countRemainingFiles())
+	return &fallbackWaitTime
+}
+
+func (s *PublicationPoller) countRemainingFiles() int {
+	updatedFiles, _ := publication_helpers.FindNextFilesInFolder(s.FolderPath, s.FileExtension, MaxFileSize, MinFileAge)
+	return len(updatedFiles)
 }

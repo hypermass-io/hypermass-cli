@@ -11,7 +11,7 @@ import (
 )
 
 // LoadSubscriptionsFromSettings Subscribe to the specified streams
-func LoadSubscriptionsFromSettings(parentCtx context.Context, hypermassProfile config.HypermassProfile, commandBus *synclock.CommandBus) {
+func LoadSubscriptionsFromSettings(parentCtx context.Context, hypermassProfile config.HypermassProfile, commandBus *synclock.CommandBus) *SubscriptionPollers {
 
 	subscriptions := NewSubscriptionPollers()
 	registerCommands(commandBus, subscriptions)
@@ -20,7 +20,7 @@ func LoadSubscriptionsFromSettings(parentCtx context.Context, hypermassProfile c
 		registerSubscription(parentCtx, subscriptions, subscriptionConfig, hypermassProfile)
 	}
 
-	subscriptions.WG.Wait()
+	return subscriptions
 }
 
 func registerSubscription(parentCtx context.Context, subscriptionPollers *SubscriptionPollers, subscriptionConfig config.SubscriptionConfiguration, hypermassProfile config.HypermassProfile) {
@@ -49,7 +49,10 @@ func registerCommands(bus *synclock.CommandBus, subscriptions *SubscriptionPolle
 			return synclock.CommandResponse{Success: false, Message: fmt.Sprintf("Stream with id '%s' not found", streamId)}
 		}
 
-		subscriptions.ResetToPayloadId(streamId, payloadId)
+		_, err := subscriptions.ResetToPayloadId(streamId, payloadId)
+		if err != nil {
+			return synclock.CommandResponse{Success: false, Message: fmt.Sprintf("Unable to reset stream with id '%s', error: %s", streamId, err)}
+		}
 
 		log.Printf("Jumping stream '%s' to payload '%s'", streamId, payloadId)
 
