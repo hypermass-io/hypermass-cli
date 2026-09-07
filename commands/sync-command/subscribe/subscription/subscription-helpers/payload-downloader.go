@@ -50,9 +50,11 @@ func DownloadPayload(auth config.HypermassAuth, folderPath string, writer payloa
 		return nil
 
 	} else if resp.StatusCode == http.StatusPaymentRequired {
+		//Hypermass API rejected the request due to insufficient allowance
 		return &app_errors.InsufficientAllowanceError{Message: "account Limits exceeded, please see https://hypermass.io/usage"}
-	} else if resp.StatusCode == http.StatusUnauthorized {
-		return fmt.Errorf("token expired while fetching payload %s", strconv.Itoa(resp.StatusCode))
+	} else if resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden {
+		// A signed link has expired or was rejected while fetching payload (from a downstream CDN)
+		return fmt.Errorf("download link expired or was rejected while fetching payload %s", strconv.Itoa(resp.StatusCode))
 	} else {
 		return fmt.Errorf("unexpected response fetching payload %s", strconv.Itoa(resp.StatusCode))
 	}
