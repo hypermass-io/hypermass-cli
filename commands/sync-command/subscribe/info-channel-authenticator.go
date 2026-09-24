@@ -9,7 +9,8 @@ import (
 	"io"
 	"log"
 	"net/http"
-	"os"
+	"strconv"
+	"time"
 )
 
 type AuthResponse struct {
@@ -25,7 +26,7 @@ func GetAuthorizedSubscriptionUrl(auth config.HypermassAuth, streamId string, la
 	if err != nil {
 		log.Println(err)
 		log.Println("Failed to authenticate, unable to construct auth request. Please report this message to support")
-		os.Exit(1)
+		return "", &app_errors.AuthenticationFailedError{Message: "could not build the authentication request"}
 	}
 
 	// Add the Authorization header
@@ -41,20 +42,15 @@ func GetAuthorizedSubscriptionUrl(auth config.HypermassAuth, streamId string, la
 		} else {
 			log.Printf("authentication failed while connecting to service: err=%v", err)
 		}
-		return "", &app_errors.AuthenticationFailedError{Message: "failed to connect to authentication service"}
+		return "", &app_errors.ConnectionLostError{Message: "could not reach the authentication service"}
 	}
 
 	defer resp.Body.Close()
 	body, err := io.ReadAll(resp.Body) // response body is []byte
 
 	if resp.StatusCode != 200 {
-		//or will a 401 reach here?
-		if resp.StatusCode == 402 {
-			return "", &app_errors.InsufficientAllowanceError{Message: "insufficient allowance to subscribe to this feed"}
-		} else {
-			log.Printf("authentication failed while connecting to service: status=%d message=%s", resp.StatusCode, body)
-			os.Exit(1)
-		}
+		log.Printf("authentication failed while connecting to service: status=%d message=%s", resp.StatusCode, body)
+		return "", subscriptionRefusal(resp, body)
 	}
 
 	var result AuthResponse
@@ -65,4 +61,85 @@ func GetAuthorizedSubscriptionUrl(auth config.HypermassAuth, streamId string, la
 	location := result.ConnectionURL
 
 	return location, err
+}
+
+// subscriptionRefusal turns a refusal into an error that this subscription can "back off" on.
+//
+// Every status returns an error, including one this client does not recognise.
+func subscriptionRefusal(resp *http.Response, body []byte) error {
+	retryAfter := retryAfterFrom(resp)
+
+	switch resp.StatusCode {
+	case http.StatusPaymentRequired:
+		//402 covers an exhausted allowance and an unavailable stream, differentiated here
+		switch refusedBecause(body) {
+		case "SUSPENDED":
+			return &app_errors.StreamUnavailableError{
+				Message: "this feed is not currently available",
+				Advised: retryAfter,
+			}
+		case "API_KEY_STREAM_DOES_NOT_EXIST":
+			return &app_errors.StreamNotFoundError{
+				Message: "there is no stream with this id",
+				Advised: retryAfter,
+			}
+		}
+
+		return &app_errors.InsufficientAllowanceError{
+			Message: "insufficient allowance to subscribe to this feed",
+			Advised: retryAfter,
+		}
+
+	case http.StatusUnauthorized:
+		return &app_errors.CredentialsRejectedError{
+			Message: "this key was rejected",
+			Advised: retryAfter,
+		}
+
+	case http.StatusForbidden:
+		return &app_errors.StreamAccessDeniedError{
+			Message: "this key may not subscribe to this feed",
+			Advised: retryAfter,
+		}
+
+	case http.StatusNotFound:
+		return &app_errors.StreamUnavailableError{
+			Message: "this feed is not currently available",
+			Advised: retryAfter,
+		}
+
+	default:
+		return &app_errors.ConnectionLostError{
+			Message: "the service refused the subscription",
+			Advised: retryAfter,
+		}
+	}
+}
+
+// refusedBecause reads the reason from a refusal body if present (or an empty string)
+func refusedBecause(body []byte) string {
+	var refusal struct {
+		RefusedBecause string `json:"refusedBecause"`
+	}
+
+	if err := json.Unmarshal(body, &refusal); err != nil {
+		return ""
+	}
+
+	return refusal.RefusedBecause
+}
+
+// retryAfterFrom reads the server's advice on when to retry (if provided).
+func retryAfterFrom(resp *http.Response) time.Duration {
+	header := resp.Header.Get("Retry-After")
+	if header == "" {
+		return 0
+	}
+
+	seconds, err := strconv.Atoi(header)
+	if err != nil || seconds <= 0 {
+		return 0
+	}
+
+	return time.Duration(seconds) * time.Second
 }

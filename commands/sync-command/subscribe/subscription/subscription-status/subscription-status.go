@@ -9,6 +9,11 @@ type SubscriptionReportingState struct {
 	WaitingUntil time.Time
 
 	LastActivity time.Time
+
+	// LastError describes why this subscription is waiting, when it is waiting because of a failure.
+	// The status command shows it alongside the time remaining, so a stalled subscription says what
+	// stalled it.
+	LastError string
 }
 
 func NewInitialState(initialWait time.Duration) SubscriptionReportingState {
@@ -27,6 +32,19 @@ func NewInitialState(initialWait time.Duration) SubscriptionReportingState {
 			WaitingUntil: time.Now().Add(initialWait),
 			LastActivity: time.Now(),
 		}
+	}
+}
+
+// NewWaitingAfterErrorState describes a subscription that is backing off after a failure.
+func NewWaitingAfterErrorState(wait time.Duration, summary string) SubscriptionReportingState {
+	//the description is the cause only, since the status table has its own column for time remaining
+	return SubscriptionReportingState{
+		Status:       "Waiting-To-Reconnect",
+		Description:  summary,
+		WaitDuration: wait,
+		WaitingUntil: time.Now().Add(wait),
+		LastActivity: time.Now(),
+		LastError:    summary,
 	}
 }
 

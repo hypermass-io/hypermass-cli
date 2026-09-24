@@ -18,6 +18,9 @@ func FormatHumanReadableMessage(response *synclock.CommandResponse) {
 
 	fmt.Println("✅ Sync is running")
 
+	//an account problem explains every row below, and a sync with no subscriptions still needs to see it
+	printAccountAlert(statusReport)
+
 	fmt.Println("\nSubscriptions:")
 	if len(statusReport.Subscriptions) == 0 {
 		fmt.Println("- none")
@@ -33,15 +36,39 @@ func FormatHumanReadableMessage(response *synclock.CommandResponse) {
 	}
 }
 
+// printAccountAlert prints a banner when the account credentials have been refused.
+//
+// The banner sits above both tables because the problem applies to every stream. A publication with
+// nothing queued never calls the service, so its own row cannot show the problem.
+func printAccountAlert(statusReport app_common.StatusReport) {
+	if statusReport.AccountAlert == "" {
+		return
+	}
+
+	lines := []string{
+		"  ACCOUNT PROBLEM - " + statusReport.AccountAlert,
+		"",
+		"  Nothing can be published or subscribed until this is resolved.",
+		"  Sign in at hypermass.io to check your key and your account.",
+	}
+
+	if !statusReport.AccountAlertSince.IsZero() {
+		lines = append(lines, "", "  Since "+statusReport.AccountAlertSince.Format("2006-01-02 15:04:05")+".")
+	}
+
+	app_common.PrintBanner(lines)
+}
+
 func printPublicationStatusTable(publications []app_common.PublicationStatus) {
 	sort.Slice(publications, func(i, j int) bool {
 		return publications[i].StreamId < publications[j].StreamId
 	})
 
 	fmt.Printf(
-		"%-14s %-22s %10s %-21s %-12s\n",
+		"%-14s %-22s %-34s %10s %-21s %-12s\n",
 		"Stream ID",
 		"Status",
+		"Detail",
 		"Queue Size",
 		"Next Poll",
 		"Time Remaining",
@@ -49,9 +76,10 @@ func printPublicationStatusTable(publications []app_common.PublicationStatus) {
 
 	for _, publication := range publications {
 		fmt.Printf(
-			"%-14s %-22s %10d %-21s %-12s\n",
+			"%-14s %-22s %-34s %10d %-21s %-12s\n",
 			truncate(publication.StreamId, 14),
 			truncate(publication.Status, 22),
+			truncate(publication.Description, 34),
 			publication.QueueSize,
 			formatTimeOrDash(publication.NextPoll),
 			formatDurationOrDash(time.Until(publication.NextPoll)),
@@ -65,9 +93,10 @@ func printSubscriptionStatusTable(subscriptions []app_common.SubscriptionStatus)
 	})
 
 	fmt.Printf(
-		"%-14s %-22s %16s %-40s %-20s %-12s\n",
+		"%-14s %-22s %-34s %16s %-40s %-20s %-12s\n",
 		"Stream ID",
 		"Status",
+		"Detail",
 		"Fetch Queue Size",
 		"Last Payload Id",
 		"Last Activity",
@@ -76,9 +105,10 @@ func printSubscriptionStatusTable(subscriptions []app_common.SubscriptionStatus)
 
 	for _, subscription := range subscriptions {
 		fmt.Printf(
-			"%-14s %-22s %16d %-40s %-20s %-12s\n",
+			"%-14s %-22s %-34s %16d %-40s %-20s %-12s\n",
 			truncate(subscription.StreamId, 14),
 			truncate(subscription.Status, 22),
+			truncate(subscription.Description, 34),
 			subscription.FetchQueueSize,
 			truncate(emptyOrDash(subscription.LastPayloadId), 40),
 			formatTimeOrDash(subscription.LastActivity),

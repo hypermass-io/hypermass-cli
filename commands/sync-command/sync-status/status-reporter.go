@@ -12,9 +12,13 @@ func ReportStatus(subscriptionPollersMap map[string]*subscription.Subscription, 
 	subscriptionStatuses := buildSubscriptionStatuses(subscriptionPollersMap)
 	publicationStatuses := buildPublicationStatuses(publicationPollersMap)
 
+	alert, alertSince, _ := app_common.CredentialsRejection()
+
 	report := app_common.StatusReport{
-		Subscriptions: subscriptionStatuses,
-		Publications:  publicationStatuses,
+		Subscriptions:     subscriptionStatuses,
+		Publications:      publicationStatuses,
+		AccountAlert:      alert,
+		AccountAlertSince: alertSince,
 	}
 
 	jsonBytes, err := json.Marshal(report)

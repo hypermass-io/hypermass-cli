@@ -3,8 +3,10 @@ package subscription
 import (
 	"errors"
 	"fmt"
+	"hypermass-cli/app_common"
 	"hypermass-cli/app_errors"
 	subscriptionhelpers "hypermass-cli/commands/sync-command/subscribe/subscription/subscription-helpers"
+	subscription_status "hypermass-cli/commands/sync-command/subscribe/subscription/subscription-status"
 	"log"
 	"math/rand"
 	"sync"
@@ -76,7 +78,8 @@ func (s *SubscriptionPollers) ResetToPayloadId(streamId string, payloadId string
 		return nil, fmt.Errorf("failed to reset state on disk: %w", err)
 	}
 
-	newSub, err := NewSubscription(oldSub.ParentCtx, oldSub.SubscriptionConfiguration, oldSub.Auth, time.Duration(0))
+	newSub, err := NewSubscription(oldSub.ParentCtx, oldSub.SubscriptionConfiguration, oldSub.Auth,
+		time.Duration(0), subscription_status.NewInitialState(time.Duration(0)))
 	if err != nil {
 		return nil, err
 	}
@@ -99,6 +102,7 @@ func (s *SubscriptionPollers) handleRequestRestart(streamId string, reason error
 	}
 
 	duration := determineDurationForError(reason)
+	noteAccountHealth(reason)
 
 	// Add a temporary worker so the main WG cannot run dry while we are switching subscriptions.
 	s.WG.Go(func() {
@@ -111,9 +115,13 @@ func (s *SubscriptionPollers) handleRequestRestart(streamId string, reason error
 		log.Printf("Subscriber for %s stopped, reason: %s", streamId, reason)
 
 		log.Println("Retrying connection to " + oldSub.StreamId + " in " + duration.String() + "...")
-		newSub, err := NewSubscription(oldSub.ParentCtx, oldSub.SubscriptionConfiguration, oldSub.Auth, duration)
+
+		waitingState := subscription_status.NewWaitingAfterErrorState(duration, summaryOf(reason))
+
+		newSub, err := NewSubscription(oldSub.ParentCtx, oldSub.SubscriptionConfiguration, oldSub.Auth,
+			duration, waitingState)
 		if err != nil {
-			log.Printf("unable to handle stopped subscription %s - failed to create replacement: %w", streamId, err)
+			log.Printf("unable to handle stopped subscription %s - failed to create replacement: %v", streamId, err)
 			return
 		}
 
@@ -123,28 +131,55 @@ func (s *SubscriptionPollers) handleRequestRestart(streamId string, reason error
 	return
 }
 
-func determineDurationForError(err error) time.Duration {
-	var insufficientAllowanceError *app_errors.InsufficientAllowanceError
-	var connectionLostError *app_errors.ConnectionLostError
+func noteAccountOk() {
+	noteAccountHealth(nil)
+}
 
-	var duration time.Duration
+// noteAccountHealth updates the shared credential state from the outcome of a call. The publication
+// side has the same helper, for the same reason.
+func noteAccountHealth(err error) {
+	var credentialsRejected *app_errors.CredentialsRejectedError
 
-	if errors.As(err, &insufficientAllowanceError) {
-		//only poll for allowance changes every 5 minutes to prevent the service being overwhelmed
-		duration = time.Duration(5) * time.Minute
-	} else if errors.As(err, &connectionLostError) {
-		//connection loss should re-try rapidly, but with higher jitter to avoid stampede
-		duration = (time.Duration(10) * time.Second) + highJitter()
-	} else if err != nil {
-		//this is a fallback, normally not expecting this to happen
-		duration = time.Duration(60)*time.Second + standardJitter()
-	} else {
-		//default poll behaviour catches all other types of errors.
-		// Fairly frequent (for speedy recovery) without being aggressive
-		duration = (time.Duration(15) * time.Second) + highJitter()
+	if errors.As(err, &credentialsRejected) {
+		app_common.RecordCredentialsRejected(credentialsRejected.Summary())
+		return
 	}
 
-	return duration
+	if err == nil {
+		app_common.RecordSuccessfulContact()
+	}
+}
+
+// summaryOf returns the error's own description, for the status command to show against a subscription.
+func summaryOf(err error) string {
+	var retryable app_errors.RetryableError
+
+	if errors.As(err, &retryable) {
+		return retryable.Summary()
+	}
+
+	if err != nil {
+		return "waiting to reconnect"
+	}
+
+	return "reconnecting"
+}
+
+func determineDurationForError(err error) time.Duration {
+	var retryable app_errors.RetryableError
+
+	//the error carries its own delay, so this function needs no knowledge of the kinds of error. The
+	//jitter is added here because spreading out reconnections is this loop's concern
+	if errors.As(err, &retryable) {
+		return retryable.RetryAfter() + standardJitter()
+	}
+
+	if err != nil {
+		return app_errors.DefaultRetryDelay + standardJitter()
+	}
+
+	//a clean exit that still wants restarting, so recover promptly
+	return (time.Duration(15) * time.Second) + highJitter()
 }
 
 func standardJitter() time.Duration {

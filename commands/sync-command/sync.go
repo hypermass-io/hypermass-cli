@@ -39,6 +39,9 @@ func SyncRunner(hypermassProfile config.HypermassProfile) {
 	publicationPollers := publish.LoadPublicationPollersFromSettings(ctx, hypermassProfile, commandBus)
 	wg.Go(func() { publicationPollers.WG.Wait() })
 
+	//start the account health process that occasionally polls the API if there's no other activity
+	go watchAccountHealth(ctx, hypermassProfile)
+
 	register(commandBus, subscriptionPollers, publicationPollers)
 
 	interrupt := make(chan os.Signal, 1)

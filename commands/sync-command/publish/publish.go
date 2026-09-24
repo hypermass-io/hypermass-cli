@@ -2,6 +2,9 @@ package publish
 
 import (
 	"context"
+	"errors"
+	"hypermass-cli/app_errors"
+	"hypermass-cli/commands/sync-command/helpers"
 	"hypermass-cli/commands/sync-command/publish/publication"
 	"hypermass-cli/config"
 	"hypermass-cli/config/synclock"
@@ -25,10 +28,18 @@ func startPoller(parentCtx context.Context, publicationPollers *publication.Publ
 	publicationPoller, err := publication.NewPublicationPoller(parentCtx, publicationConfig, hypermassProfile)
 
 	if err != nil {
-		log.Println("Unable to initialise stream")
 		if publicationPoller != nil {
 			publicationPoller.Cancel()
 		}
+
+		//refused credentials stop the command, because no change to the configuration will fix them and
+		//whoever started the sync is here to read the message
+		var credentialsRejected *app_errors.CredentialsRejectedError
+		if errors.As(err, &credentialsRejected) {
+			helpers.StopWithAuthenticationFailure()
+		}
+
+		log.Println("Unable to initialise stream")
 		os.Exit(1)
 	}
 

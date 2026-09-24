@@ -47,11 +47,13 @@ type Subscription struct {
 	ReportingState subscription_status.SubscriptionReportingState
 }
 
+// NewSubscription creates a subscription and starts it after startupDelay.
 func NewSubscription(
 	parentCtx context.Context,
 	streamConfig config.SubscriptionConfiguration,
 	auth config.HypermassAuth,
 	startupDelay time.Duration,
+	startupState subscription_status.SubscriptionReportingState,
 ) (*Subscription, error) {
 
 	ctx, cancel := context.WithCancel(parentCtx)
@@ -79,7 +81,7 @@ func NewSubscription(
 		FileQueue:                 make(chan *messages.PayloadNotificationMessage, 100000),
 		Writer:                    payload_writers.GetPayloadWriter(streamConfig.WriterType, streamConfig.Key),
 		StartPoint:                streamConfig.StartPoint,
-		ReportingState:            subscription_status.NewInitialState(startupDelay),
+		ReportingState:            startupState,
 	}
 
 	go func() {
@@ -140,6 +142,8 @@ func (s *Subscription) startInfoChannelReader() error {
 	if authErr != nil {
 		return authErr
 	}
+
+	noteAccountOk()
 
 	//connect to the websocket
 	websocketUrl, websocketParseError := url.Parse(signedWebsocketUrl)

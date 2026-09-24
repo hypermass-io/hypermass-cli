@@ -80,7 +80,7 @@ func upload(signedURL string, pr *io.PipeReader, writer *multipart.Writer) (*Upl
 		var uploadResp UploadResponse
 
 		if err := json.NewDecoder(resp.Body).Decode(&uploadResp); err != nil {
-			fmt.Printf("upload succeeded but failed to parse JSON response: %w", err)
+			fmt.Printf("upload succeeded but failed to parse JSON response: %v", err)
 			return &UploadResult{PayloadId: ""}, nil
 		}
 
@@ -123,8 +123,16 @@ func getSignedUploadURL(token string, streamId string) (string, error) {
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden {
-		return "", fmt.Errorf("preliminary auth failed with status %d. Check token", resp.StatusCode)
+	if resp.StatusCode == http.StatusUnauthorized {
+		return "", &app_errors.CredentialsRejectedError{Message: "this key was rejected"}
+	}
+
+	if resp.StatusCode == http.StatusForbidden {
+		return "", &app_errors.StreamAccessDeniedError{Message: "not allowed to publish to " + streamId}
+	}
+
+	if resp.StatusCode == http.StatusNotFound {
+		return "", &app_errors.StreamNotFoundError{Message: "there is no stream with this id"}
 	}
 
 	if resp.StatusCode == http.StatusServiceUnavailable {
@@ -136,7 +144,9 @@ func getSignedUploadURL(token string, streamId string) (string, error) {
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("preliminary auth failed with unexpected status code: %d", resp.StatusCode)
+		return "", &app_errors.ConnectionLostError{
+			Message: fmt.Sprintf("the service refused the upload (status %d)", resp.StatusCode),
+		}
 	}
 
 	signedURL := resp.Header.Get("Location")
@@ -168,7 +178,7 @@ func buildRetryLaterError(resp *http.Response) error {
 	}
 
 	return &app_errors.RetryLaterError{
-		RetryAfter: time.Duration(retryAfterSec) * time.Second,
+		RetryAfterDuration: time.Duration(retryAfterSec) * time.Second,
 	}
 }
 

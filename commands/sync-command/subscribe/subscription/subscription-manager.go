@@ -3,6 +3,7 @@ package subscription
 import (
 	"context"
 	"fmt"
+	subscription_status "hypermass-cli/commands/sync-command/subscribe/subscription/subscription-status"
 	"hypermass-cli/config"
 	"hypermass-cli/config/synclock"
 	"log"
@@ -24,7 +25,8 @@ func LoadSubscriptionsFromSettings(parentCtx context.Context, hypermassProfile c
 }
 
 func registerSubscription(parentCtx context.Context, subscriptionPollers *SubscriptionPollers, subscriptionConfig config.SubscriptionConfiguration, hypermassProfile config.HypermassProfile) {
-	subscription, err := NewSubscription(parentCtx, subscriptionConfig, hypermassProfile.Auth, time.Duration(0))
+	subscription, err := NewSubscription(parentCtx, subscriptionConfig, hypermassProfile.Auth,
+		time.Duration(0), subscription_status.NewInitialState(time.Duration(0)))
 
 	if err != nil {
 		log.Println("Unable to initialise stream")

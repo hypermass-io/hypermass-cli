@@ -27,4 +27,8 @@ type PublicationStatus struct {
 type StatusReport struct {
 	Subscriptions []SubscriptionStatus `json:"subscriptions"`
 	Publications  []PublicationStatus  `json:"publicationStatus"`
+
+	// AccountAlert indicates a general issue with account creds
+	AccountAlert      string    `json:"accountAlert"`
+	AccountAlertSince time.Time `json:"accountAlertSince"`
 }

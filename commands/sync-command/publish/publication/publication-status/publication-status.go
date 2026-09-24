@@ -1,7 +1,6 @@
 package publication_status
 
 import (
-	"fmt"
 	"time"
 )
 
@@ -16,7 +15,7 @@ type PublicationReportingState struct {
 func NewInitialState() PublicationReportingState {
 	return PublicationReportingState{
 		Status:      "Initialising",
-		Description: "initialising...",
+		Description: "initialising",
 		QueueSize:   0,
 	}
 }
@@ -25,8 +24,9 @@ func NewWaitingRateLimitedStatus(pollWaitDuration time.Duration, queued int) Pub
 	nextPollTime := time.Now().Add(pollWaitDuration)
 
 	return PublicationReportingState{
-		Status:           "Rate-Limited",
-		Description:      fmt.Sprintf("waiting until %s (delay of %s) to publish", nextPollTime.Format(time.RFC3339), pollWaitDuration.String()),
+		Status: "Rate-Limited",
+		//the cause only, since the status table has its own columns for the next poll and time remaining
+		Description:      "publishing too fast, waiting",
 		NextPoll:         nextPollTime,
 		PollWaitDuration: pollWaitDuration,
 		QueueSize:        queued,
@@ -36,7 +36,7 @@ func NewWaitingRateLimitedStatus(pollWaitDuration time.Duration, queued int) Pub
 func NewPollingWaitStatus(pollWaitDuration time.Duration, queued int) PublicationReportingState {
 	return PublicationReportingState{
 		Status:           "Polling",
-		Description:      "Waiting for next poll",
+		Description:      "waiting for the next file poll",
 		NextPoll:         time.Now().Add(pollWaitDuration),
 		PollWaitDuration: pollWaitDuration,
 		QueueSize:        queued,
@@ -46,7 +46,7 @@ func NewPollingWaitStatus(pollWaitDuration time.Duration, queued int) Publicatio
 func NewPublishingStatus(queued int) PublicationReportingState {
 	return PublicationReportingState{
 		Status:      "Publishing",
-		Description: "Publishing file (%s queued, including this one)",
+		Description: "publishing a file",
 		QueueSize:   queued,
 	}
 }
@@ -64,7 +64,7 @@ func NewErrorStatus(errorText string, pollWaitTime time.Duration, queued int) Pu
 func NewInsufficientAllowanceStatus(pollWaitTime time.Duration, queued int) PublicationReportingState {
 	return PublicationReportingState{
 		Status:           "Insufficient-Allowance",
-		Description:      "Insufficient allowance - polling for status change",
+		Description:      "insufficient allowance",
 		NextPoll:         time.Now().Add(pollWaitTime),
 		PollWaitDuration: pollWaitTime,
 		QueueSize:        queued,
@@ -74,7 +74,7 @@ func NewInsufficientAllowanceStatus(pollWaitTime time.Duration, queued int) Publ
 func NewDeletingFileFailedRetryingStatus(pollWaitTime time.Duration, queued int) PublicationReportingState {
 	return PublicationReportingState{
 		Status:           "Delete-File-Failed",
-		Description:      "Unable to delete file, retrying",
+		Description:      "could not delete a published file",
 		NextPoll:         time.Now().Add(pollWaitTime),
 		PollWaitDuration: pollWaitTime,
 		QueueSize:        queued,
