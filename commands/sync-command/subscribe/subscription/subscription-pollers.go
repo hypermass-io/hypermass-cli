@@ -29,6 +29,29 @@ func (s *SubscriptionPollers) Store(key string, value *Subscription) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	s.adopt(key, value)
+}
+
+// Replace stores a replacement subscription only while the old subscription is still the one held for the key.
+// Protects against the 'old' subscription being reloaded, and the (now stale) replacement regressing the reload.
+// Also avoids having to lock _all subscriptions_ as we wait for the old subscription to finish.
+// A refused replacement is cancelled.
+func (s *SubscriptionPollers) Replace(key string, old *Subscription, replacement *Subscription) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if s.data[key] != old {
+		replacement.Cancel()
+		return false
+	}
+
+	s.adopt(key, replacement)
+	return true
+}
+
+// adopt makes the subscription the one held for the key: its restart requests come back here, and the
+// pollers' WaitGroup waits on it until it stops. Callers must hold s.mu.
+func (s *SubscriptionPollers) adopt(key string, value *Subscription) {
 	value.RequestRestart = s.handleRequestRestart
 
 	s.data[key] = value
@@ -67,6 +90,7 @@ func (s *SubscriptionPollers) ResetToPayloadId(streamId string, payloadId string
 
 	// Temporary worker to keep the pollers WG alive for the duration of the reset.
 	s.WG.Add(1)
+	defer s.WG.Done()
 
 	log.Printf("Resetting stream %s. Purging queue...", streamId)
 	oldSub.Cancel()
@@ -84,12 +108,11 @@ func (s *SubscriptionPollers) ResetToPayloadId(streamId string, payloadId string
 		return nil, err
 	}
 
-	s.Store(streamId, newSub)
+	if !s.Replace(streamId, oldSub, newSub) {
+		return nil, fmt.Errorf("stream %s was changed while resetting", streamId)
+	}
 
 	log.Printf("✅ Stream %s successfully reset to %s", streamId, payloadId)
-
-	// Mark the temporary worker as done
-	s.WG.Done()
 
 	return newSub, nil
 }
@@ -125,7 +148,9 @@ func (s *SubscriptionPollers) handleRequestRestart(streamId string, reason error
 			return
 		}
 
-		s.Store(streamId, newSub)
+		if !s.Replace(streamId, oldSub, newSub) {
+			log.Printf("Subscription %s was replaced or removed while reconnecting, reconnection abandoned", streamId)
+		}
 	})
 
 	return
