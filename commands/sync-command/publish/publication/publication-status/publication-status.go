@@ -61,6 +61,14 @@ func NewErrorStatus(errorText string, pollWaitTime time.Duration, queued int) Pu
 	}
 }
 
+// NewFailedToStartStatus describes a publication that could not start, such as one whose target directory is unusable.
+func NewFailedToStartStatus(summary string) PublicationReportingState {
+	return PublicationReportingState{
+		Status:      "Failed-To-Start",
+		Description: summary,
+	}
+}
+
 func NewInsufficientAllowanceStatus(pollWaitTime time.Duration, queued int) PublicationReportingState {
 	return PublicationReportingState{
 		Status:           "Insufficient-Allowance",

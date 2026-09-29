@@ -45,6 +45,9 @@ type Subscription struct {
 	ProcessorsWG sync.WaitGroup
 
 	ReportingState subscription_status.SubscriptionReportingState
+
+	// StartError is why the subscription could not start, nil for one that started
+	StartError error
 }
 
 // NewSubscription creates a subscription and starts it after startupDelay.
@@ -99,6 +102,30 @@ func NewSubscription(
 	}()
 
 	return subscription, nil
+}
+
+// NewFailedSubscription holds the place of a subscription that could not start, so the status command can show
+// why. It is already stopped and has no processors.
+func NewFailedSubscription(
+	parentCtx context.Context,
+	streamConfig config.SubscriptionConfiguration,
+	auth config.HypermassAuth,
+	startError error,
+) *Subscription {
+	ctx, cancel := context.WithCancel(parentCtx)
+	cancel()
+
+	return &Subscription{
+		StreamId:                  streamConfig.Key,
+		ParentCtx:                 parentCtx,
+		Ctx:                       ctx,
+		Cancel:                    cancel,
+		Auth:                      auth,
+		SubscriptionConfiguration: streamConfig,
+		FolderPath:                helpers.GetStreamPathFromConfig(streamConfig.TargetDirectory),
+		ReportingState:            subscription_status.NewFailedToStartState(startError.Error()),
+		StartError:                startError,
+	}
 }
 
 // indicates that the subscription is broken and should stop (later to be retried)

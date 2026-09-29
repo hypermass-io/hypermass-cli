@@ -56,6 +56,16 @@ func NewStoppedState() SubscriptionReportingState {
 	}
 }
 
+// NewFailedToStartState describes a subscription that could not start, such as one whose target directory is unusable.
+func NewFailedToStartState(summary string) SubscriptionReportingState {
+	return SubscriptionReportingState{
+		Status:       "Failed-To-Start",
+		Description:  summary,
+		LastActivity: time.Now(),
+		LastError:    summary,
+	}
+}
+
 func NewRestartingState() SubscriptionReportingState {
 	return SubscriptionReportingState{
 		Status:       "Restarting",

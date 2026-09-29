@@ -7,7 +7,6 @@ import (
 	"hypermass-cli/config"
 	"hypermass-cli/config/synclock"
 	"log"
-	"os"
 	"time"
 )
 
@@ -20,8 +19,7 @@ func LoadSubscriptionsFromSettings(parentCtx context.Context, hypermassProfile c
 	for _, subscriptionConfig := range hypermassProfile.Configuration.SubscriptionConfigurations {
 		err := startSubscription(parentCtx, subscriptions, subscriptionConfig, hypermassProfile)
 		if err != nil {
-			log.Println("Unable to initialise stream")
-			os.Exit(1)
+			log.Printf("Unable to start subscription %s: %v", subscriptionConfig.Key, err)
 		}
 	}
 
@@ -37,6 +35,7 @@ func startSubscription(parentCtx context.Context, subscriptionPollers *Subscript
 		if subscription != nil {
 			subscription.Cancel()
 		}
+		subscriptionPollers.Store(subscriptionConfig.Key, NewFailedSubscription(parentCtx, subscriptionConfig, hypermassProfile.Auth, err))
 		return err
 	}
 
@@ -51,9 +50,13 @@ func registerCommands(bus *synclock.CommandBus, subscriptions *SubscriptionPolle
 		streamId := req.Params["streamId"]
 		payloadId := req.Params["payloadId"]
 
-		_, success := subscriptions.Load(streamId)
+		subscription, success := subscriptions.Load(streamId)
 		if !success {
 			return synclock.CommandResponse{Success: false, Message: fmt.Sprintf("Stream with id '%s' not found", streamId)}
+		}
+
+		if subscription.StartError != nil {
+			return synclock.CommandResponse{Success: false, Message: fmt.Sprintf("Stream with id '%s' failed to start: %s", streamId, subscription.StartError)}
 		}
 
 		_, err := subscriptions.ResetToPayloadId(streamId, payloadId)

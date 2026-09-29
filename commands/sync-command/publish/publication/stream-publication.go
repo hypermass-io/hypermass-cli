@@ -46,6 +46,9 @@ type PublicationPoller struct {
 
 	//ProcessorsWG a WG tracking the processors, such as pollForFiles
 	ProcessorsWG sync.WaitGroup
+
+	// StartError is why the publication could not start, nil for one that started
+	StartError error
 }
 
 // NewPublicationPoller create an active PublicationPoller and starts running it
@@ -90,6 +93,24 @@ func NewPublicationPoller(parentCtx context.Context, publicationConfig config.Pu
 	publicationPoller.ProcessorsWG.Go(publicationPoller.pollForFiles)
 
 	return publicationPoller, nil
+}
+
+// NewFailedPublicationPoller holds the place of a publication that could not start, so the status command can show
+// why. It is already stopped and has no processors.
+func NewFailedPublicationPoller(parentCtx context.Context, publicationConfig config.PublicationConfiguration, hypermassProfile config.HypermassProfile, startError error) *PublicationPoller {
+	ctx, cancel := context.WithCancel(parentCtx)
+	cancel()
+
+	return &PublicationPoller{
+		StreamId:                 publicationConfig.Key,
+		Ctx:                      ctx,
+		Cancel:                   cancel,
+		Auth:                     hypermassProfile.Auth,
+		PublicationConfiguration: publicationConfig,
+		FolderPath:               helpers.GetStreamPathFromConfig(publicationConfig.TargetDirectory),
+		ReportingState:           publication_status.NewFailedToStartStatus(startError.Error()),
+		StartError:               startError,
+	}
 }
 
 // initialStateFor gives a publication its starting state, which shows any configuration failure.

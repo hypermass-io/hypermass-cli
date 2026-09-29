@@ -9,7 +9,6 @@ import (
 	"hypermass-cli/config"
 	"hypermass-cli/config/synclock"
 	"log"
-	"os"
 )
 
 // LoadPublicationPollersFromSettings loads and starts running the pollers from settings
@@ -27,8 +26,7 @@ func LoadPublicationPollersFromSettings(ctx context.Context, hypermassProfile co
 				helpers.StopWithAuthenticationFailure()
 			}
 
-			log.Println("Unable to initialise stream")
-			os.Exit(1)
+			log.Printf("Unable to start publication %s: %v", publicationConfig.Key, err)
 		}
 	}
 
@@ -42,6 +40,12 @@ func startPoller(parentCtx context.Context, publicationPollers *publication.Publ
 	if err != nil {
 		if publicationPoller != nil {
 			publicationPoller.Cancel()
+		}
+
+		//refused credentials are not stored, as they stop the sync rather than one stream
+		var credentialsRejected *app_errors.CredentialsRejectedError
+		if !errors.As(err, &credentialsRejected) {
+			publicationPollers.Store(publicationConfig.Key, publication.NewFailedPublicationPoller(parentCtx, publicationConfig, hypermassProfile, err))
 		}
 		return err
 	}
