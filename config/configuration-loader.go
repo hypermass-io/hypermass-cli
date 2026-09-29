@@ -85,6 +85,11 @@ func LoadProfile() HypermassProfile {
 		log.Fatal(err)
 	}
 
+	configuration, warnings := configuration.Deduplicated()
+	for _, warning := range warnings {
+		log.Println("⚠️ " + warning)
+	}
+
 	hypermassProfile.Configuration = configuration
 	hypermassProfile.Auth = LoadSecretKey()
 
