@@ -3,6 +3,7 @@ package publication
 import (
 	"context"
 	"testing"
+	"time"
 )
 
 func TestLoadReturnsTheStoredPoller(t *testing.T) {
@@ -26,5 +27,25 @@ func TestLoadOfAMissingKeyReportsNotFound(t *testing.T) {
 
 	if ok || loaded != nil {
 		t.Error("expected a missing key to report not found")
+	}
+}
+
+func TestCancelledPollerProcessorsFinish(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	poller := &PublicationPoller{StreamId: "_abc", Ctx: ctx, Cancel: cancel, FolderPath: t.TempDir(), configurationRead: true}
+	poller.ProcessorsWG.Go(poller.pollForFiles)
+
+	cancel()
+
+	finished := make(chan struct{})
+	go func() {
+		poller.ProcessorsWG.Wait()
+		close(finished)
+	}()
+
+	select {
+	case <-finished:
+	case <-time.After(5 * time.Second):
+		t.Fatal("expected the poller's processors to finish once cancelled")
 	}
 }

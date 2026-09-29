@@ -56,9 +56,10 @@ func (s *SubscriptionPollers) adopt(key string, value *Subscription) {
 
 	s.data[key] = value
 
-	//adds a block worker for the pollers context, which itself may have many child workers
+	//adds a block worker that holds until the stream is stopped and its processors have finished
 	s.WG.Go(func() {
 		<-value.Ctx.Done()
+		value.ProcessorsWG.Wait()
 	})
 }
 

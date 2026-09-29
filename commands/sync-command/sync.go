@@ -43,9 +43,16 @@ func SyncRunner(hypermassProfile config.HypermassProfile) {
 
 	select { // wait until we get a shutdown signal
 	case <-interrupt:
-		log.Println("OS Interrupt received. Exiting.")
+		log.Println("OS Interrupt received. Finishing current transfers, interrupt again to exit immediately.")
 		cancel()
 	}
+
+	//fallback for doing a hard stop in case of a hanging wait
+	go func() {
+		<-interrupt
+		log.Println("Second interrupt received. Exiting immediately.")
+		os.Exit(1)
+	}()
 
 	// waited on after shutdown starts, so streams added while running are included
 	subscriptionPollers.WG.Wait()

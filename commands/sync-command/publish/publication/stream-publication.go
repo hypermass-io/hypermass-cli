@@ -13,6 +13,7 @@ import (
 	subscriptionhelpers "hypermass-cli/commands/sync-command/subscribe/subscription/subscription-helpers"
 	"hypermass-cli/config"
 	"log"
+	"sync"
 	"time"
 )
 
@@ -42,6 +43,9 @@ type PublicationPoller struct {
 	configurationRead bool
 
 	ReportingState publication_status.PublicationReportingState
+
+	//ProcessorsWG a WG tracking the processors, such as pollForFiles
+	ProcessorsWG sync.WaitGroup
 }
 
 // NewPublicationPoller create an active PublicationPoller and starts running it
@@ -83,7 +87,7 @@ func NewPublicationPoller(parentCtx context.Context, publicationConfig config.Pu
 		ReportingState:           initialStateFor(configError),
 	}
 
-	go publicationPoller.pollForFiles()
+	publicationPoller.ProcessorsWG.Go(publicationPoller.pollForFiles)
 
 	return publicationPoller, nil
 }
@@ -200,6 +204,11 @@ func (s *PublicationPoller) handleNextFilesInFolder() *time.Duration {
 	}
 
 	for _, entry := range filesToProcess {
+		//a stopped poller finishes the file in hand and leaves the rest for its replacement
+		if s.Ctx.Err() != nil {
+			return &fallbackWaitTime
+		}
+
 		s.ReportingState = publication_status.NewPublishingStatus(s.countRemainingFiles())
 
 		uploadOutcome, err := publication_helpers.PublishFileToStream(entry.Path, s.StreamId, s.Auth.Token)
@@ -244,7 +253,13 @@ func (s *PublicationPoller) handleNextFilesInFolder() *time.Duration {
 			fmt.Printf("Failed to clean up the uploaded file (%s), further uploads blocked. Please delete manually (poller will retry every 30 seconds): %s \n", entry.Path, err)
 			sleepDuration := 30 * time.Second
 			s.ReportingState = publication_status.NewDeletingFileFailedRetryingStatus(sleepDuration, s.countRemainingFiles())
-			time.Sleep(sleepDuration)
+
+			select {
+			case <-time.After(sleepDuration):
+			case <-s.Ctx.Done():
+				log.Printf("Publication poller stopped before the uploaded file (%s) was removed, it will be published again unless deleted", entry.Path)
+				return &fallbackWaitTime
+			}
 		}
 	}
 
