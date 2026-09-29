@@ -12,7 +12,6 @@ import (
 	"log"
 	"os"
 	"os/signal"
-	"sync"
 	"syscall"
 )
 
@@ -31,13 +30,8 @@ func SyncRunner(hypermassProfile config.HypermassProfile) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	// A WaitGroup is used to block the main function until all background goroutines are done.
-	var wg sync.WaitGroup
 	subscriptionPollers := subscription.LoadSubscriptionsFromSettings(ctx, hypermassProfile, commandBus)
-	wg.Go(func() { subscriptionPollers.WG.Wait() })
-
 	publicationPollers := publish.LoadPublicationPollersFromSettings(ctx, hypermassProfile, commandBus)
-	wg.Go(func() { publicationPollers.WG.Wait() })
 
 	//start the account health process that occasionally polls the API if there's no other activity
 	go watchAccountHealth(ctx, hypermassProfile)
@@ -53,7 +47,9 @@ func SyncRunner(hypermassProfile config.HypermassProfile) {
 		cancel()
 	}
 
-	wg.Wait() // wait until workers have actually stopped
+	// waited on after shutdown starts, so streams added while running are included
+	subscriptionPollers.WG.Wait()
+	publicationPollers.WG.Wait()
 }
 
 func register(bus *synclock.CommandBus, subscriptionPollers *subscription.SubscriptionPollers, publicationPollers *publication.PublicationPollers) {
