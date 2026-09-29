@@ -17,31 +17,35 @@ func LoadPublicationPollersFromSettings(ctx context.Context, hypermassProfile co
 
 	publicationPollers := publication.NewPublicationPollers()
 
-	for _, subscriptionConfig := range hypermassProfile.Configuration.PublicationConfigurations {
-		startPoller(ctx, publicationPollers, subscriptionConfig, hypermassProfile)
+	for _, publicationConfig := range hypermassProfile.Configuration.PublicationConfigurations {
+		err := startPoller(ctx, publicationPollers, publicationConfig, hypermassProfile)
+		if err != nil {
+			//refused credentials stop the command, because no change to the configuration will fix them and
+			//whoever started the sync is here to read the message
+			var credentialsRejected *app_errors.CredentialsRejectedError
+			if errors.As(err, &credentialsRejected) {
+				helpers.StopWithAuthenticationFailure()
+			}
+
+			log.Println("Unable to initialise stream")
+			os.Exit(1)
+		}
 	}
 
 	return publicationPollers
 }
 
-func startPoller(parentCtx context.Context, publicationPollers *publication.PublicationPollers, publicationConfig config.PublicationConfiguration, hypermassProfile config.HypermassProfile) {
+// startPoller starts a publication poller and stores it, returning an error if there are issues
+func startPoller(parentCtx context.Context, publicationPollers *publication.PublicationPollers, publicationConfig config.PublicationConfiguration, hypermassProfile config.HypermassProfile) error {
 	publicationPoller, err := publication.NewPublicationPoller(parentCtx, publicationConfig, hypermassProfile)
 
 	if err != nil {
 		if publicationPoller != nil {
 			publicationPoller.Cancel()
 		}
-
-		//refused credentials stop the command, because no change to the configuration will fix them and
-		//whoever started the sync is here to read the message
-		var credentialsRejected *app_errors.CredentialsRejectedError
-		if errors.As(err, &credentialsRejected) {
-			helpers.StopWithAuthenticationFailure()
-		}
-
-		log.Println("Unable to initialise stream")
-		os.Exit(1)
+		return err
 	}
 
 	publicationPollers.Store(publicationConfig.Key, publicationPoller)
+	return nil
 }

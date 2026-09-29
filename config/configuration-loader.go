@@ -2,6 +2,7 @@ package config
 
 import (
 	"errors"
+	"fmt"
 	"io/fs"
 	"log"
 	"os"
@@ -78,20 +79,33 @@ func CreateOrGetConfigPath() string {
 
 func LoadProfile() HypermassProfile {
 	var hypermassProfile HypermassProfile
+
+	configuration, err := ReadConfiguration()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	hypermassProfile.Configuration = configuration
+	hypermassProfile.Auth = LoadSecretKey()
+
+	return hypermassProfile
+}
+
+// ReadConfiguration reads hypermass-config.yaml
+func ReadConfiguration() (HypermassConfig, error) {
+	var configuration HypermassConfig
 	path := filepath.Join(CreateOrGetConfigPath(), "hypermass-config.yaml")
 
 	data, err := os.ReadFile(path)
 	if err != nil {
-		log.Fatalf("cannot read config file %s: %s", path, err)
+		return HypermassConfig{}, fmt.Errorf("cannot read config file %s: %w", path, err)
 	}
 
-	if err := yaml.Unmarshal(data, &hypermassProfile.Configuration); err != nil {
-		log.Fatalf("invalid YAML in %s: %s", path, err)
+	if err := yaml.Unmarshal(data, &configuration); err != nil {
+		return HypermassConfig{}, fmt.Errorf("invalid YAML in %s: %w", path, err)
 	}
 
-	hypermassProfile.Auth = LoadSecretKey()
-
-	return hypermassProfile
+	return configuration, nil
 }
 
 func LoadSecretKey() HypermassAuth {

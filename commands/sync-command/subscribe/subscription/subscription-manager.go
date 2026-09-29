@@ -18,25 +18,30 @@ func LoadSubscriptionsFromSettings(parentCtx context.Context, hypermassProfile c
 	registerCommands(commandBus, subscriptions)
 
 	for _, subscriptionConfig := range hypermassProfile.Configuration.SubscriptionConfigurations {
-		registerSubscription(parentCtx, subscriptions, subscriptionConfig, hypermassProfile)
+		err := startSubscription(parentCtx, subscriptions, subscriptionConfig, hypermassProfile)
+		if err != nil {
+			log.Println("Unable to initialise stream")
+			os.Exit(1)
+		}
 	}
 
 	return subscriptions
 }
 
-func registerSubscription(parentCtx context.Context, subscriptionPollers *SubscriptionPollers, subscriptionConfig config.SubscriptionConfiguration, hypermassProfile config.HypermassProfile) {
+// startSubscription starts a subscription and registers it in subscriptionPollers
+func startSubscription(parentCtx context.Context, subscriptionPollers *SubscriptionPollers, subscriptionConfig config.SubscriptionConfiguration, hypermassProfile config.HypermassProfile) error {
 	subscription, err := NewSubscription(parentCtx, subscriptionConfig, hypermassProfile.Auth,
 		time.Duration(0), subscription_status.NewInitialState(time.Duration(0)))
 
 	if err != nil {
-		log.Println("Unable to initialise stream")
 		if subscription != nil {
 			subscription.Cancel()
 		}
-		os.Exit(1)
+		return err
 	}
 
 	subscriptionPollers.Store(subscriptionConfig.Key, subscription)
+	return nil
 }
 
 func registerCommands(bus *synclock.CommandBus, subscriptions *SubscriptionPollers) {
