@@ -26,11 +26,11 @@ func (s *PublicationPollers) Store(key string, value *PublicationPoller) {
 	})
 }
 
-func (s *PublicationPollers) Load(key string) (PublicationPoller, bool) {
+func (s *PublicationPollers) Load(key string) (*PublicationPoller, bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	value, ok := s.data[key]
-	return *value, ok
+	return value, ok
 }
 
 // Snapshot returns a shallow copy snapshot of the map
