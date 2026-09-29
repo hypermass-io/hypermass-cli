@@ -13,7 +13,7 @@ func PrintInfo(configLocation string) {
 	fmt.Printf("Version:                   %s\n", app_constants.HypermassCliVersion)
 	fmt.Printf("Build date:                %s\n", app_constants.BuildDate)
 	fmt.Printf("Commit:                    %s\n", app_constants.Commit)
-	fmt.Printf("HypermassConfig Location:  %s\n", configLocation)
+	fmt.Printf("Hypermass Config Location:  %s\n", configLocation)
 }
 
 func PrintNotYetConfiguredMessage() {

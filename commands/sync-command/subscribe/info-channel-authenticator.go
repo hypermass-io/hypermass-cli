@@ -50,7 +50,7 @@ func GetAuthorizedSubscriptionUrl(auth config.HypermassAuth, streamId string, la
 
 	if resp.StatusCode != 200 {
 		log.Printf("authentication failed while connecting to service: status=%d message=%s", resp.StatusCode, body)
-		return "", subscriptionRefusal(resp, body)
+		return "", subscriptionRefusal(resp)
 	}
 
 	var result AuthResponse
@@ -65,26 +65,13 @@ func GetAuthorizedSubscriptionUrl(auth config.HypermassAuth, streamId string, la
 
 // subscriptionRefusal turns a refusal into an error that this subscription can "back off" on.
 //
-// Every status returns an error, including one this client does not recognise.
-func subscriptionRefusal(resp *http.Response, body []byte) error {
+// The status says what it is: the allowance is spent, the key is wrong, the feed is out of reach, or
+// there is no such stream. Every status returns an error, including one this client does not recognise.
+func subscriptionRefusal(resp *http.Response) error {
 	retryAfter := retryAfterFrom(resp)
 
 	switch resp.StatusCode {
 	case http.StatusPaymentRequired:
-		//402 covers an exhausted allowance and an unavailable stream, differentiated here
-		switch refusedBecause(body) {
-		case "SUSPENDED":
-			return &app_errors.StreamUnavailableError{
-				Message: "this feed is not currently available",
-				Advised: retryAfter,
-			}
-		case "API_KEY_STREAM_DOES_NOT_EXIST":
-			return &app_errors.StreamNotFoundError{
-				Message: "there is no stream with this id",
-				Advised: retryAfter,
-			}
-		}
-
 		return &app_errors.InsufficientAllowanceError{
 			Message: "insufficient allowance to subscribe to this feed",
 			Advised: retryAfter,
@@ -98,14 +85,20 @@ func subscriptionRefusal(resp *http.Response, body []byte) error {
 
 	case http.StatusForbidden:
 		return &app_errors.StreamAccessDeniedError{
-			Message: "this key may not subscribe to this feed",
+			Message: "this feed is not available to this key",
 			Advised: retryAfter,
 		}
 
 	case http.StatusNotFound:
-		return &app_errors.StreamUnavailableError{
-			Message: "this feed is not currently available",
+		return &app_errors.StreamNotFoundError{
+			Message: "there is no stream with this id",
 			Advised: retryAfter,
+		}
+
+	case http.StatusTooManyRequests:
+		return &app_errors.RetryLaterError{
+			Message:            "asking for this feed too often",
+			RetryAfterDuration: retryAfter,
 		}
 
 	default:
@@ -114,19 +107,6 @@ func subscriptionRefusal(resp *http.Response, body []byte) error {
 			Advised: retryAfter,
 		}
 	}
-}
-
-// refusedBecause reads the reason from a refusal body if present (or an empty string)
-func refusedBecause(body []byte) string {
-	var refusal struct {
-		RefusedBecause string `json:"refusedBecause"`
-	}
-
-	if err := json.Unmarshal(body, &refusal); err != nil {
-		return ""
-	}
-
-	return refusal.RefusedBecause
 }
 
 // retryAfterFrom reads the server's advice on when to retry (if provided).

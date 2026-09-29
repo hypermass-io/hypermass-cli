@@ -37,6 +37,10 @@ type PublicationPoller struct {
 	Disposer      payload_read_disposer.PayloadReadDisposerStrategy
 	FileExtension string
 
+	// configurationRead records whether the stream configuration has been read. The service can answer
+	// with an empty file extension, so this flag is what tells the two apart.
+	configurationRead bool
+
 	ReportingState publication_status.PublicationReportingState
 }
 
@@ -75,6 +79,7 @@ func NewPublicationPoller(parentCtx context.Context, publicationConfig config.Pu
 		FolderPath:               folderPath,
 		Disposer:                 payload_read_disposer.GetPayloadReadDisposer(publicationConfig.DisposerType, publicationConfig.Key, publicationConfig.TargetDirectory),
 		FileExtension:            streamConfigFromService.FileExtension,
+		configurationRead:        configError == nil,
 		ReportingState:           initialStateFor(configError),
 	}
 
@@ -160,6 +165,7 @@ func (s *PublicationPoller) retryConfiguration() *time.Duration {
 
 	if err == nil {
 		s.FileExtension = streamConfig.FileExtension
+		s.configurationRead = true
 		return nil
 	}
 
@@ -178,7 +184,7 @@ func (s *PublicationPoller) retryConfiguration() *time.Duration {
 func (s *PublicationPoller) handleNextFilesInFolder() *time.Duration {
 
 	//publishing needs the file type from the configuration, so read that before looking for files
-	if s.FileExtension == "" {
+	if !s.configurationRead {
 		if wait := s.retryConfiguration(); wait != nil {
 			return wait
 		}

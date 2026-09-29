@@ -21,8 +21,8 @@ func responseWith(status int, retryAfter string) *http.Response {
 // Every refusal must produce an error the caller can back off on. Returning nil would leave the caller
 // with no reason to retry, and exiting would stop the other subscriptions in the same sync.
 func TestSubscriptionRefusalAlwaysReturnsAnError(t *testing.T) {
-	for _, status := range []int{400, 401, 402, 403, 404, 418, 500, 503} {
-		if subscriptionRefusal(responseWith(status, ""), nil) == nil {
+	for _, status := range []int{400, 401, 402, 403, 404, 418, 429, 500, 503} {
+		if subscriptionRefusal(responseWith(status, "")) == nil {
 			t.Errorf("status %d produced no error", status)
 		}
 	}
@@ -31,7 +31,7 @@ func TestSubscriptionRefusalAlwaysReturnsAnError(t *testing.T) {
 // The description and the delay come from the same error, so the user is told this is an allowance
 // problem and the wait is the one the service asked for.
 func TestPaymentRequiredKeepsItsReasonAndTakesTheServersDelay(t *testing.T) {
-	err := subscriptionRefusal(responseWith(http.StatusPaymentRequired, "21600"), nil)
+	err := subscriptionRefusal(responseWith(http.StatusPaymentRequired, "21600"))
 
 	var allowance *app_errors.InsufficientAllowanceError
 	if !errors.As(err, &allowance) {
@@ -45,7 +45,7 @@ func TestPaymentRequiredKeepsItsReasonAndTakesTheServersDelay(t *testing.T) {
 
 // Without the header, the error supplies its own default delay.
 func TestPaymentRequiredFallsBackToItsOwnDelay(t *testing.T) {
-	err := subscriptionRefusal(responseWith(http.StatusPaymentRequired, ""), nil)
+	err := subscriptionRefusal(responseWith(http.StatusPaymentRequired, ""))
 
 	var allowance *app_errors.InsufficientAllowanceError
 	if !errors.As(err, &allowance) {
@@ -59,8 +59,8 @@ func TestPaymentRequiredFallsBackToItsOwnDelay(t *testing.T) {
 
 // Every refusal must supply both a retry delay and a description for the status command.
 func TestEveryRefusalIsRetryableAndDescribes(t *testing.T) {
-	for _, status := range []int{400, 401, 402, 403, 404, 410, 418, 500, 503} {
-		err := subscriptionRefusal(responseWith(status, ""), nil)
+	for _, status := range []int{400, 401, 402, 403, 404, 410, 418, 429, 500, 503} {
+		err := subscriptionRefusal(responseWith(status, ""))
 
 		var retryable app_errors.RetryableError
 		if !errors.As(err, &retryable) {
@@ -78,54 +78,28 @@ func TestEveryRefusalIsRetryableAndDescribes(t *testing.T) {
 	}
 }
 
-// 402 carries two meanings and the body names which. Reading it wrongly would tell someone to buy
-// more allowance when their stream has been suspended.
-func TestPaymentRequiredReadsTheReasonFromTheBody(t *testing.T) {
-	suspended := subscriptionRefusal(responseWith(http.StatusPaymentRequired, ""),
-		[]byte(`{"refusedBecause":"SUSPENDED"}`))
+// Asking too often clears by waiting, where the other refusals need something to change first.
+func TestTooManyRequestsIsAWait(t *testing.T) {
+	err := subscriptionRefusal(responseWith(http.StatusTooManyRequests, "120"))
 
-	var unavailable *app_errors.StreamUnavailableError
-	if !errors.As(suspended, &unavailable) {
-		t.Errorf("a suspended stream: expected a StreamUnavailableError, got %T", suspended)
+	var retryLater *app_errors.RetryLaterError
+	if !errors.As(err, &retryLater) {
+		t.Fatalf("expected a RetryLaterError, got %T", err)
 	}
 
-	overLimit := subscriptionRefusal(responseWith(http.StatusPaymentRequired, ""),
-		[]byte(`{"refusedBecause":"ACCOUNT_LIMIT_EXCEEDED"}`))
-
-	var allowance *app_errors.InsufficientAllowanceError
-	if !errors.As(overLimit, &allowance) {
-		t.Errorf("over allowance: expected an InsufficientAllowanceError, got %T", overLimit)
+	if retryLater.RetryAfter() != 2*time.Minute {
+		t.Errorf("expected 2m, got %v", retryLater.RetryAfter())
 	}
 }
 
-// A service released before the body carried a reason sends none, and its 402 always meant allowance.
-func TestPaymentRequiredWithoutABodyStaysAnAllowanceProblem(t *testing.T) {
-	err := subscriptionRefusal(responseWith(http.StatusPaymentRequired, ""), nil)
-
-	var allowance *app_errors.InsufficientAllowanceError
-	if !errors.As(err, &allowance) {
-		t.Errorf("expected an InsufficientAllowanceError, got %T", err)
-	}
-}
-
-// A typo in the configuration and a suspended stream are different problems. One needs correcting and
-// the other needs waiting out, so the status command must be able to tell them apart.
-func TestMissingStreamIsToldApartFromASuspendedOne(t *testing.T) {
-	missing := subscriptionRefusal(responseWith(http.StatusPaymentRequired, ""),
-		[]byte(`{"refusedBecause":"API_KEY_STREAM_DOES_NOT_EXIST"}`))
+// A typo in the configuration needs correcting, where a feed out of reach needs waiting out. The
+// status command shows them differently, so they must arrive as different errors.
+func TestMissingStreamIsItsOwnState(t *testing.T) {
+	err := subscriptionRefusal(responseWith(http.StatusNotFound, ""))
 
 	var notFound *app_errors.StreamNotFoundError
-	if !errors.As(missing, &notFound) {
-		t.Errorf("expected a StreamNotFoundError, got %T", missing)
-	}
-}
-
-func TestUnavailableStreamIsItsOwnState(t *testing.T) {
-	err := subscriptionRefusal(responseWith(http.StatusNotFound, ""), nil)
-
-	var unavailable *app_errors.StreamUnavailableError
-	if !errors.As(err, &unavailable) {
-		t.Fatalf("expected a StreamUnavailableError, got %T", err)
+	if !errors.As(err, &notFound) {
+		t.Fatalf("expected a StreamNotFoundError, got %T", err)
 	}
 }
 
@@ -133,12 +107,12 @@ func TestUnavailableStreamIsItsOwnState(t *testing.T) {
 // sync running. The two need separate error types to produce those separate responses.
 func TestRejectedKeyIsToldApartFromADeniedStream(t *testing.T) {
 	var credentialsRejected *app_errors.CredentialsRejectedError
-	if err := subscriptionRefusal(responseWith(http.StatusUnauthorized, ""), nil); !errors.As(err, &credentialsRejected) {
+	if err := subscriptionRefusal(responseWith(http.StatusUnauthorized, "")); !errors.As(err, &credentialsRejected) {
 		t.Errorf("401: expected a CredentialsRejectedError, got %T", err)
 	}
 
 	var accessDenied *app_errors.StreamAccessDeniedError
-	if err := subscriptionRefusal(responseWith(http.StatusForbidden, ""), nil); !errors.As(err, &accessDenied) {
+	if err := subscriptionRefusal(responseWith(http.StatusForbidden, "")); !errors.As(err, &accessDenied) {
 		t.Errorf("403: expected a StreamAccessDeniedError, got %T", err)
 	}
 }
@@ -146,7 +120,7 @@ func TestRejectedKeyIsToldApartFromADeniedStream(t *testing.T) {
 // An unrecognised status leads to a retry. This is how a client keeps working when the service starts
 // sending a status added after that client was released.
 func TestUnknownStatusIsRetryable(t *testing.T) {
-	err := subscriptionRefusal(responseWith(http.StatusTeapot, ""), nil)
+	err := subscriptionRefusal(responseWith(http.StatusTeapot, ""))
 
 	var connectionLost *app_errors.ConnectionLostError
 	if !errors.As(err, &connectionLost) {

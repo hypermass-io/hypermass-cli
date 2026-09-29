@@ -70,8 +70,6 @@ func register(bus *synclock.CommandBus, subscriptionPollers *subscription.Subscr
 			return synclock.CommandResponse{Success: false, Message: fmt.Sprintf("Unable to get status: %s", err)}
 		}
 
-		log.Printf("Reporting status")
-
 		return synclock.CommandResponse{Success: true, Data: reportStatus}
 	})
 }

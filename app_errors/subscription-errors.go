@@ -23,10 +23,6 @@ const (
 	// create the stream.
 	StreamNotFoundRetryDelay = 30 * time.Minute
 
-	// StreamUnavailableRetryDelay applies when a stream has been suspended or removed. Its owner has to
-	// resolve whatever caused that.
-	StreamUnavailableRetryDelay = 30 * time.Minute
-
 	// AuthenticationFailedRetryDelay applies when a request could not be authenticated.
 	AuthenticationFailedRetryDelay = 30 * time.Minute
 
@@ -217,30 +213,6 @@ func (e *StreamNotFoundError) RetryAfter() time.Duration {
 
 func (e *StreamNotFoundError) Summary() string {
 	return "no such stream - check the id"
-}
-
-// StreamUnavailableError indicates the stream exists but the service will not serve it, because it has
-// been suspended or removed. The stream may become available again once its owner resolves the
-// problem.
-type StreamUnavailableError struct {
-	Message string
-	Advised time.Duration
-}
-
-func (e *StreamUnavailableError) Error() string {
-	return e.Message
-}
-
-func (e *StreamUnavailableError) RetryAfter() time.Duration {
-	if e.Advised > 0 {
-		return e.Advised
-	}
-
-	return StreamUnavailableRetryDelay
-}
-
-func (e *StreamUnavailableError) Summary() string {
-	return "stream unavailable"
 }
 
 // RetryLaterError indicates that the request was valid but should be retried after a delay

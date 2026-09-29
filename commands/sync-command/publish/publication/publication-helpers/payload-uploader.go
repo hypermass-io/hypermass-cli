@@ -89,7 +89,7 @@ func upload(signedURL string, pr *io.PipeReader, writer *multipart.Writer) (*Upl
 
 	//Failed path
 	//TODO HYP-275 - scaling efforts will make this redundant (all upload checks will be moved to the signed url)
-	if resp.StatusCode == http.StatusServiceUnavailable {
+	if resp.StatusCode == http.StatusTooManyRequests || resp.StatusCode == http.StatusServiceUnavailable {
 		return nil, buildRetryLaterError(resp)
 	}
 
@@ -135,7 +135,7 @@ func getSignedUploadURL(token string, streamId string) (string, error) {
 		return "", &app_errors.StreamNotFoundError{Message: "there is no stream with this id"}
 	}
 
-	if resp.StatusCode == http.StatusServiceUnavailable {
+	if resp.StatusCode == http.StatusTooManyRequests || resp.StatusCode == http.StatusServiceUnavailable {
 		return "", buildRetryLaterError(resp)
 	}
 
