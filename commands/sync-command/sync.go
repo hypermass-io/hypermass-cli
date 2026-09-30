@@ -37,6 +37,12 @@ func SyncRunner(hypermassProfile config.HypermassProfile) {
 	go watchAccountHealth(ctx, hypermassProfile)
 
 	register(commandBus, subscriptionPollers, publicationPollers)
+	registerReload(commandBus, &reloader{
+		ctx:                 ctx,
+		hypermassProfile:    hypermassProfile,
+		subscriptionPollers: subscriptionPollers,
+		publicationPollers:  publicationPollers,
+	})
 
 	interrupt := make(chan os.Signal, 1)
 	signal.Notify(interrupt, os.Interrupt, syscall.SIGTERM)
@@ -54,7 +60,10 @@ func SyncRunner(hypermassProfile config.HypermassProfile) {
 		os.Exit(1)
 	}()
 
-	// waited on after shutdown starts, so streams added while running are included
+	// waited on after shutdown starts, so streams added while running are included. Closed first, so nothing is
+	// added to a WaitGroup while it is being waited on
+	subscriptionPollers.Close()
+	publicationPollers.Close()
 	subscriptionPollers.WG.Wait()
 	publicationPollers.WG.Wait()
 }

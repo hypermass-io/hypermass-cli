@@ -55,10 +55,16 @@ func DialSync() (*http.Client, *SyncLock, error) {
 // Dispatch sends a command to the running sync process and returns the response.
 // This is the primary helper function for commands like 'replay', 'status', etc.
 func Dispatch(action string, params map[string]string) (*CommandResponse, error) {
+	return DispatchWithTimeout(action, params, 10*time.Second)
+}
+
+// DispatchWithTimeout sends a command to the running sync process, for commands that take longer to answer.
+func DispatchWithTimeout(action string, params map[string]string, timeout time.Duration) (*CommandResponse, error) {
 	client, lock, err := DialSync()
 	if err != nil {
 		return nil, err
 	}
+	client.Timeout = timeout
 
 	// Build the URL for the universal Command Bus endpoint
 	url := fmt.Sprintf("http://127.0.0.1:%d/cmd", lock.Port)

@@ -7,16 +7,19 @@ import (
 	"hypermass-cli/app_errors"
 	subscriptionhelpers "hypermass-cli/commands/sync-command/subscribe/subscription/subscription-helpers"
 	subscription_status "hypermass-cli/commands/sync-command/subscribe/subscription/subscription-status"
+	"hypermass-cli/config"
 	"log"
 	"math/rand"
+	"sort"
 	"sync"
 	"time"
 )
 
 type SubscriptionPollers struct {
-	mu   sync.Mutex
-	data map[string]*Subscription
-	WG   sync.WaitGroup
+	mu     sync.Mutex
+	data   map[string]*Subscription
+	WG     sync.WaitGroup
+	closed bool
 }
 
 func NewSubscriptionPollers() *SubscriptionPollers {
@@ -45,13 +48,26 @@ func (s *SubscriptionPollers) Replace(key string, old *Subscription, replacement
 		return false
 	}
 
-	s.adopt(key, replacement)
-	return true
+	return s.adopt(key, replacement)
+}
+
+// Close stops the pollers taking on subscriptions, so the WaitGroup can be waited on at shutdown. Anything stored
+// or replaced after Close is cancelled instead.
+func (s *SubscriptionPollers) Close() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.closed = true
 }
 
 // adopt makes the subscription the one held for the key: its restart requests come back here, and the
-// pollers' WaitGroup waits on it until it stops. Callers must hold s.mu.
-func (s *SubscriptionPollers) adopt(key string, value *Subscription) {
+// pollers' WaitGroup waits on it until it stops. Once closed it cancels the subscription instead, returning false.
+// Callers must hold s.mu.
+func (s *SubscriptionPollers) adopt(key string, value *Subscription) bool {
+	if s.closed {
+		value.Cancel()
+		return false
+	}
+
 	value.RequestRestart = s.handleRequestRestart
 
 	s.data[key] = value
@@ -61,6 +77,8 @@ func (s *SubscriptionPollers) adopt(key string, value *Subscription) {
 		<-value.Ctx.Done()
 		value.ProcessorsWG.Wait()
 	})
+
+	return true
 }
 
 func (s *SubscriptionPollers) Load(key string) (*Subscription, bool) {
@@ -68,6 +86,32 @@ func (s *SubscriptionPollers) Load(key string) (*Subscription, bool) {
 	defer s.mu.Unlock()
 	value, ok := s.data[key]
 	return value, ok
+}
+
+// Take removes and returns the subscription held for the key, so any pending replacement for it is refused.
+func (s *SubscriptionPollers) Take(key string) (*Subscription, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	value, ok := s.data[key]
+	delete(s.data, key)
+	return value, ok
+}
+
+// RunningConfigurations returns the configuration of each started subscription, ordered by key. Failed entries
+// are left out, so a reload retries them.
+func (s *SubscriptionPollers) RunningConfigurations() []config.SubscriptionConfiguration {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	var running []config.SubscriptionConfiguration
+	for _, subscription := range s.data {
+		if subscription.StartError == nil {
+			running = append(running, subscription.SubscriptionConfiguration)
+		}
+	}
+
+	sort.Slice(running, func(i, j int) bool { return running[i].Key < running[j].Key })
+	return running
 }
 
 // Snapshot returns a shallow copy snapshot of the map
@@ -88,10 +132,6 @@ func (s *SubscriptionPollers) ResetToPayloadId(streamId string, payloadId string
 	if !exists {
 		return nil, fmt.Errorf("stream %s not found", streamId)
 	}
-
-	// Temporary worker to keep the pollers WG alive for the duration of the reset.
-	s.WG.Add(1)
-	defer s.WG.Done()
 
 	log.Printf("Resetting stream %s. Purging queue...", streamId)
 	oldSub.Cancel()

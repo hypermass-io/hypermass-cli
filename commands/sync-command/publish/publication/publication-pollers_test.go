@@ -49,3 +49,19 @@ func TestCancelledPollerProcessorsFinish(t *testing.T) {
 		t.Fatal("expected the poller's processors to finish once cancelled")
 	}
 }
+
+func TestClosedPollersCancelInsteadOfStoring(t *testing.T) {
+	pollers := NewPublicationPollers()
+	pollers.Close()
+	ctx, cancel := context.WithCancel(context.Background())
+	poller := &PublicationPoller{StreamId: "_abc", Ctx: ctx, Cancel: cancel}
+
+	pollers.Store("_abc", poller)
+
+	if _, ok := pollers.Load("_abc"); ok {
+		t.Error("expected a store after Close to be refused")
+	}
+	if ctx.Err() == nil {
+		t.Error("expected the refused poller to be cancelled")
+	}
+}

@@ -65,3 +65,24 @@ func TestReplaceRefusesWhenKeyIsGone(t *testing.T) {
 		t.Error("expected the refused replacement to be cancelled")
 	}
 }
+
+func TestClosedPollersCancelInsteadOfStoring(t *testing.T) {
+	pollers := NewSubscriptionPollers()
+	old := testSubscription("_abc")
+	pollers.Store("_abc", old)
+	pollers.Close()
+
+	stored := testSubscription("_def")
+	pollers.Store("_def", stored)
+	replacement := testSubscription("_abc")
+
+	if pollers.Replace("_abc", old, replacement) {
+		t.Error("expected a replacement after Close to be refused")
+	}
+	if _, ok := pollers.Load("_def"); ok {
+		t.Error("expected a store after Close to be refused")
+	}
+	if stored.Ctx.Err() == nil || replacement.Ctx.Err() == nil {
+		t.Error("expected refused subscriptions to be cancelled")
+	}
+}

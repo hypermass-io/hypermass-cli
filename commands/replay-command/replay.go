@@ -3,6 +3,7 @@ package replay_command
 import (
 	"fmt"
 	"hypermass-cli/config/synclock"
+	"os"
 )
 
 func Replay(streamKey string, payloadID string) {
@@ -19,12 +20,13 @@ func Replay(streamKey string, payloadID string) {
 		// TODO This is where we could put fallback logic to edit the state.yaml manually.
 		//  needs some thought - is this a good idea?
 		//  e.g. how to differentiate latest, earliest and not-yet-initialised
-		return
+		os.Exit(1)
 	}
 
 	if result.Success {
 		fmt.Printf("✅ %s\n", result.Message)
 	} else {
 		fmt.Printf("❌ Command rejected: %s\n", result.Message)
+		os.Exit(1)
 	}
 }

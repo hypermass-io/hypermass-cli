@@ -25,7 +25,7 @@ func Status(format string) {
 				Message: "Could not contact hypermass sync process - please check that it is running.",
 				Error:   err.Error(),
 			})
-			return
+			os.Exit(1)
 		}
 
 		printJSON(statusOutput{
@@ -33,18 +33,22 @@ func Status(format string) {
 			Message: result.Message,
 			Data:    result.Data,
 		})
+		if !result.Success {
+			os.Exit(1)
+		}
 		return
 	}
 
 	if err != nil {
 		fmt.Printf("⚠️ Could not contact hypermass sync process - please check that it is running. Error: %v\n", err)
-		return
+		os.Exit(1)
 	}
 
 	if result.Success {
 		formatters.FormatHumanReadableMessage(result)
 	} else {
 		fmt.Printf("❌ Command rejected: %s\n", result.Message)
+		os.Exit(1)
 	}
 }
 

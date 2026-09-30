@@ -42,14 +42,53 @@ func startPoller(parentCtx context.Context, publicationPollers *publication.Publ
 			publicationPoller.Cancel()
 		}
 
-		//refused credentials are not stored, as they stop the sync rather than one stream
-		var credentialsRejected *app_errors.CredentialsRejectedError
-		if !errors.As(err, &credentialsRejected) {
-			publicationPollers.Store(publicationConfig.Key, publication.NewFailedPublicationPoller(parentCtx, publicationConfig, hypermassProfile, err))
-		}
+		publicationPollers.Store(publicationConfig.Key, publication.NewFailedPublicationPoller(parentCtx, publicationConfig, hypermassProfile, err))
 		return err
 	}
 
 	publicationPollers.Store(publicationConfig.Key, publicationPoller)
 	return nil
+}
+
+// ApplyChanges stops the removed and changed publications, and any failed entry for an added one, waiting for
+// their processors. It then starts the added and changed publications, returning the start error of each that
+// failed, by key.
+func ApplyChanges(parentCtx context.Context, publicationPollers *publication.PublicationPollers, changes config.StreamChanges[config.PublicationConfiguration], hypermassProfile config.HypermassProfile) map[string]error {
+	var stopping []*publication.PublicationPoller
+	stop := func(key string) {
+		if poller, ok := publicationPollers.Take(key); ok {
+			poller.Cancel()
+			stopping = append(stopping, poller)
+		}
+	}
+
+	for _, key := range changes.Removed {
+		stop(key)
+	}
+	for _, entry := range changes.Changed {
+		stop(entry.Key)
+	}
+	for _, entry := range changes.Added {
+		stop(entry.Key)
+	}
+
+	for _, poller := range stopping {
+		poller.ProcessorsWG.Wait()
+	}
+
+	failures := make(map[string]error)
+	start := func(entry config.PublicationConfiguration) {
+		if err := startPoller(parentCtx, publicationPollers, entry, hypermassProfile); err != nil {
+			failures[entry.Key] = err
+		}
+	}
+
+	for _, entry := range changes.Added {
+		start(entry)
+	}
+	for _, entry := range changes.Changed {
+		start(entry)
+	}
+
+	return failures
 }

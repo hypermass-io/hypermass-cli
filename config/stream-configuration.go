@@ -30,14 +30,14 @@ func (c HypermassConfig) Deduplicated() (HypermassConfig, []string) {
 	return deduplicated, append(subscriptionWarnings, publicationWarnings...)
 }
 
-func firstEntryPerKey[T StreamConfiguration](entries []T, kind string) ([]T, []string) {
+func firstEntryPerKey[T StreamConfiguration](entries []T, direction string) ([]T, []string) {
 	seen := make(map[string]bool)
 	var kept []T
 	var warnings []string
 
 	for _, entry := range entries {
 		if seen[entry.StreamKey()] {
-			warnings = append(warnings, fmt.Sprintf("duplicate %s entry for %s ignored, the first entry is used", kind, entry.StreamKey()))
+			warnings = append(warnings, fmt.Sprintf("duplicate %s entry for %s ignored, the first entry is used", direction, entry.StreamKey()))
 			continue
 		}
 

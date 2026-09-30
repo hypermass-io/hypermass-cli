@@ -43,6 +43,49 @@ func startSubscription(parentCtx context.Context, subscriptionPollers *Subscript
 	return nil
 }
 
+// ApplyChanges stops the removed and changed subscriptions, and any failed entry for an added one, waiting for
+// their processors. It then starts the added and changed subscriptions, returning the start error of each that
+// failed, by key.
+func ApplyChanges(parentCtx context.Context, subscriptionPollers *SubscriptionPollers, changes config.StreamChanges[config.SubscriptionConfiguration], hypermassProfile config.HypermassProfile) map[string]error {
+	var stopping []*Subscription
+	stop := func(key string) {
+		if subscription, ok := subscriptionPollers.Take(key); ok {
+			subscription.Cancel()
+			stopping = append(stopping, subscription)
+		}
+	}
+
+	for _, key := range changes.Removed {
+		stop(key)
+	}
+	for _, entry := range changes.Changed {
+		stop(entry.Key)
+	}
+	for _, entry := range changes.Added {
+		stop(entry.Key)
+	}
+
+	for _, subscription := range stopping {
+		subscription.ProcessorsWG.Wait()
+	}
+
+	failures := make(map[string]error)
+	start := func(entry config.SubscriptionConfiguration) {
+		if err := startSubscription(parentCtx, subscriptionPollers, entry, hypermassProfile); err != nil {
+			failures[entry.Key] = err
+		}
+	}
+
+	for _, entry := range changes.Added {
+		start(entry)
+	}
+	for _, entry := range changes.Changed {
+		start(entry)
+	}
+
+	return failures
+}
+
 func registerCommands(bus *synclock.CommandBus, subscriptions *SubscriptionPollers) {
 
 	// replay command
