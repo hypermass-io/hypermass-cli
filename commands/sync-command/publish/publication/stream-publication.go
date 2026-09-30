@@ -62,7 +62,7 @@ func NewPublicationPoller(parentCtx context.Context, publicationConfig config.Pu
 	streamConfigFromService, configError := publication_helpers.GetConfigurationForStream(
 		hypermassProfile, publicationConfig.Key)
 
-	directoryError := subscriptionhelpers.InitialiseAndCheckDirectory(folderPath)
+	directoryError := subscriptionhelpers.InitialiseAndCheckDirectory(folderPath, publicationConfig.Key, config.DirectionPublication)
 
 	if directoryError != nil {
 		log.Println(directoryError)

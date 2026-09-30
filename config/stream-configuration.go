@@ -2,6 +2,12 @@ package config
 
 import "fmt"
 
+// Directions of a stream entry. A target directory is used in one direction only.
+const (
+	DirectionSubscription = "subscription"
+	DirectionPublication  = "publication"
+)
+
 // StreamConfiguration is a subscription or publication entry, identified by its stream key.
 type StreamConfiguration interface {
 	comparable
@@ -19,8 +25,8 @@ func (c PublicationConfiguration) StreamKey() string {
 // Deduplicated keeps the first entry for each stream key in each list, returning a warning for every entry
 // ignored. Subscriptions and publications are separate lists, so a key may appear once in each.
 func (c HypermassConfig) Deduplicated() (HypermassConfig, []string) {
-	subscriptions, subscriptionWarnings := firstEntryPerKey(c.SubscriptionConfigurations, "subscription")
-	publications, publicationWarnings := firstEntryPerKey(c.PublicationConfigurations, "publication")
+	subscriptions, subscriptionWarnings := firstEntryPerKey(c.SubscriptionConfigurations, DirectionSubscription)
+	publications, publicationWarnings := firstEntryPerKey(c.PublicationConfigurations, DirectionPublication)
 
 	deduplicated := HypermassConfig{
 		SubscriptionConfigurations: subscriptions,

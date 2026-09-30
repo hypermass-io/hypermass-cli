@@ -62,7 +62,7 @@ func NewSubscription(
 	ctx, cancel := context.WithCancel(parentCtx)
 
 	folderPath := helpers.GetStreamPathFromConfig(streamConfig.TargetDirectory)
-	directoryError := subscriptionhelpers.InitialiseAndCheckDirectory(folderPath)
+	directoryError := subscriptionhelpers.InitialiseAndCheckDirectory(folderPath, streamConfig.Key, config.DirectionSubscription)
 	lastPayloadId := subscriptionhelpers.ReadLastPayloadId(folderPath)
 
 	if directoryError != nil {
@@ -288,7 +288,7 @@ func (s *Subscription) StartFileQueueProcessor() {
 					return //exit the "StartFileQueueProcessor" loop completely - this instance won't recover
 				}
 
-				writeEtagErr := subscriptionhelpers.WriteLastPayloadId(s.FolderPath, msg.PayloadId)
+				writeEtagErr := subscriptionhelpers.WriteLastPayloadId(s.FolderPath, s.StreamId, msg.PayloadId)
 				if writeEtagErr != nil {
 					log.Println("Failed to record the last payload id (may result in repeated message): ", writeEtagErr)
 					s.restartSubscriptionWithReason(writeEtagErr)

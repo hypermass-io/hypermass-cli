@@ -138,7 +138,7 @@ func (s *SubscriptionPollers) ResetToPayloadId(streamId string, payloadId string
 	log.Printf("⏳ Waiting for %s cleanup...", streamId)
 	oldSub.ProcessorsWG.Wait()
 
-	err := subscriptionhelpers.WriteLastPayloadId(oldSub.FolderPath, payloadId)
+	err := subscriptionhelpers.WriteLastPayloadId(oldSub.FolderPath, streamId, payloadId)
 	if err != nil {
 		return nil, fmt.Errorf("failed to reset state on disk: %w", err)
 	}
