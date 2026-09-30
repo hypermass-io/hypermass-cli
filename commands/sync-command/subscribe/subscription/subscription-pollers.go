@@ -168,8 +168,9 @@ func (s *SubscriptionPollers) handleRequestRestart(streamId string, reason error
 	duration := determineDurationForError(reason)
 	noteAccountHealth(reason)
 
-	// Add a temporary worker so the main WG cannot run dry while we are switching subscriptions.
-	s.WG.Go(func() {
+	// Stops oldSub and replaces it once its processors have finished. Asynchronous because the caller is one of
+	// those processors, so waiting for them here would never finish.
+	go func() {
 		log.Printf("Connection lost for stream %s", oldSub.StreamId)
 
 		oldSub.Cancel()
@@ -192,7 +193,7 @@ func (s *SubscriptionPollers) handleRequestRestart(streamId string, reason error
 		if !s.Replace(streamId, oldSub, newSub) {
 			log.Printf("Subscription %s was replaced or removed while reconnecting, reconnection abandoned", streamId)
 		}
-	})
+	}()
 
 	return
 }
