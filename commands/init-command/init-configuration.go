@@ -55,6 +55,7 @@ func initialiseConfiguration() {
 	}
 
 	hypermassConfiguration := config.HypermassConfig{
+		BaseDirectory:              hotfolderDirectoryInput,
 		SubscriptionConfigurations: subscriptions,
 	}
 

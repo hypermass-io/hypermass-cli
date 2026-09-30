@@ -31,8 +31,27 @@ type HypermassProfile struct {
 }
 
 type HypermassConfig struct {
+	// BaseDirectory is where commands such as subscribe place new streams' target directories
+	BaseDirectory              string                      `yaml:"base-directory,omitempty"`
 	SubscriptionConfigurations []SubscriptionConfiguration `yaml:"subscription-targets"`
 	PublicationConfigurations  []PublicationConfiguration  `yaml:"publication-sources"`
+}
+
+// BaseDirectoryOrDefault returns the base directory, or <home>/hypermass when none is configured.
+func (c HypermassConfig) BaseDirectoryOrDefault() (string, error) {
+	if c.BaseDirectory != "" {
+		if !filepath.IsAbs(c.BaseDirectory) {
+			return "", fmt.Errorf("base-directory must be an absolute path, got %s", c.BaseDirectory)
+		}
+		return c.BaseDirectory, nil
+	}
+
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("unable to find the home directory for the default base-directory: %w", err)
+	}
+
+	return filepath.Join(home, "hypermass"), nil
 }
 
 type HypermassAuth struct {
