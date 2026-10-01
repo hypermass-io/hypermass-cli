@@ -12,16 +12,33 @@ import (
 )
 
 // AddSubscription appends a subscription to the end of subscription-targets in hypermass-config.yaml, creating the file
-// if it is missing. Comments and the order of entries are kept, while the layout is normalised.
+// with the base directory if it is missing. Comments and the order of entries are kept, while the layout is normalised.
 func AddSubscription(entry SubscriptionConfiguration) error {
+	return addEntry(func(original []byte) ([]byte, error) {
+		return appendSubscription(original, entry)
+	})
+}
+
+// AddPublication appends a publication to the end of publication-sources in hypermass-config.yaml, creating the file
+// with the base directory if it is missing. Comments and the order of entries are kept, while the layout is normalised.
+func AddPublication(entry PublicationConfiguration) error {
+	return addEntry(func(original []byte) ([]byte, error) {
+		return appendPublication(original, entry)
+	})
+}
+
+func addEntry(appendTo func(original []byte) ([]byte, error)) error {
 	path := filepath.Join(CreateOrGetConfigPath(), "hypermass-config.yaml")
 
 	original, err := os.ReadFile(path)
-	if err != nil && !errors.Is(err, fs.ErrNotExist) {
+	if errors.Is(err, fs.ErrNotExist) {
+		original, err = newConfiguration()
+	}
+	if err != nil {
 		return fmt.Errorf("cannot read config file %s: %w", path, err)
 	}
 
-	updated, err := appendSubscription(original, entry)
+	updated, err := appendTo(original)
 	if err != nil {
 		return err
 	}
@@ -35,8 +52,37 @@ func AddSubscription(entry SubscriptionConfiguration) error {
 	return os.Rename(temporaryPath, path)
 }
 
+// newConfiguration is the starting point for a configuration file that does not exist yet, recording the base
+// directory so the file shows where its streams are stored.
+func newConfiguration() ([]byte, error) {
+	baseDirectory, err := HypermassConfig{}.BaseDirectoryOrDefault()
+	if err != nil {
+		return nil, err
+	}
+
+	return yaml.Marshal(HypermassConfig{BaseDirectory: baseDirectory})
+}
+
 // appendSubscription returns the configuration with the entry added as the last subscription target.
 func appendSubscription(original []byte, entry SubscriptionConfiguration) ([]byte, error) {
+	return appendToList(original, "subscription-targets", mapping(
+		"key", entry.Key,
+		"target-directory", entry.TargetDirectory,
+		"writer-type", entry.WriterType,
+	))
+}
+
+// appendPublication returns the configuration with the entry added as the last publication source.
+func appendPublication(original []byte, entry PublicationConfiguration) ([]byte, error) {
+	return appendToList(original, "publication-sources", mapping(
+		"key", entry.Key,
+		"target-directory", entry.TargetDirectory,
+		"disposer-type", entry.DisposerType,
+	))
+}
+
+// appendToList returns the configuration with the item added to the end of the named top level list.
+func appendToList(original []byte, listName string, item *yaml.Node) ([]byte, error) {
 	var document yaml.Node
 	if err := yaml.Unmarshal(original, &document); err != nil {
 		return nil, fmt.Errorf("invalid YAML in the config file: %w", err)
@@ -52,16 +98,12 @@ func appendSubscription(original []byte, entry SubscriptionConfiguration) ([]byt
 		return nil, errors.New("the config file is not a set of settings that can be added to")
 	}
 
-	targets := subscriptionTargets(root)
-	if targets == nil {
-		return nil, errors.New("subscription-targets is not a list that can be added to")
+	list := topLevelList(root, listName)
+	if list == nil {
+		return nil, fmt.Errorf("%s is not a list that can be added to", listName)
 	}
 
-	targets.Content = append(targets.Content, &yaml.Node{Kind: yaml.MappingNode, Tag: "!!map", Content: []*yaml.Node{
-		text("key"), text(entry.Key),
-		text("target-directory"), text(entry.TargetDirectory),
-		text("writer-type"), text(entry.WriterType),
-	}})
+	list.Content = append(list.Content, item)
 
 	var updated bytes.Buffer
 	encoder := yaml.NewEncoder(&updated)
@@ -76,10 +118,10 @@ func appendSubscription(original []byte, entry SubscriptionConfiguration) ([]byt
 	return updated.Bytes(), nil
 }
 
-// subscriptionTargets finds the subscription-targets list, adding it or turning an empty value into a list as needed.
-func subscriptionTargets(root *yaml.Node) *yaml.Node {
+// topLevelList finds the named list, adding it or turning an empty value into a list as needed.
+func topLevelList(root *yaml.Node, listName string) *yaml.Node {
 	for i := 0; i+1 < len(root.Content); i += 2 {
-		if root.Content[i].Value != "subscription-targets" {
+		if root.Content[i].Value != listName {
 			continue
 		}
 
@@ -96,12 +138,17 @@ func subscriptionTargets(root *yaml.Node) *yaml.Node {
 		return value
 	}
 
-	key := &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: "subscription-targets"}
+	key := &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: listName}
 	value := &yaml.Node{Kind: yaml.SequenceNode, Tag: "!!seq"}
 	root.Content = append(root.Content, key, value)
 	return value
 }
 
-func text(value string) *yaml.Node {
-	return &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: value}
+// mapping builds a mapping from alternating field names and values, keeping their order.
+func mapping(fieldsAndValues ...string) *yaml.Node {
+	node := &yaml.Node{Kind: yaml.MappingNode, Tag: "!!map"}
+	for _, value := range fieldsAndValues {
+		node.Content = append(node.Content, &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: value})
+	}
+	return node
 }

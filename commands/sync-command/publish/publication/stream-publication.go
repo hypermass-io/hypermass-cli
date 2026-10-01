@@ -61,6 +61,9 @@ func NewPublicationPoller(parentCtx context.Context, publicationConfig config.Pu
 	//through the status command, and reads the configuration on a later pass once it becomes available
 	streamConfigFromService, configError := publication_helpers.GetConfigurationForStream(
 		hypermassProfile, publicationConfig.Key)
+	if configError != nil {
+		log.Printf("Unable to read the configuration for %s: %v", publicationConfig.Key, configError)
+	}
 
 	directoryError := subscriptionhelpers.InitialiseAndCheckDirectory(folderPath, publicationConfig.Key, config.DirectionPublication)
 

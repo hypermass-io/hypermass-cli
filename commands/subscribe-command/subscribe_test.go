@@ -99,8 +99,9 @@ func TestSubscribeCreatesAMissingConfigFile(t *testing.T) {
 	Subscribe("_abc")
 
 	created, _ := os.ReadFile(filepath.Join(configDirectory, "hypermass-config.yaml"))
-	expected := "subscription-targets:\n" +
-		"  - key: _abc\n    target-directory: /home/someone/hypermass/subscriptions/_abc\n    writer-type: file-per-payload\n"
+	expected := "base-directory: /home/someone/hypermass\nsubscription-targets:\n" +
+		"  - key: _abc\n    target-directory: /home/someone/hypermass/subscriptions/_abc\n    writer-type: file-per-payload\n" +
+		"publication-sources: []\n"
 	if string(created) != expected {
 		t.Errorf("unexpected config\n%s", created)
 	}

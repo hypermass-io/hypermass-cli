@@ -7,7 +7,6 @@ import (
 	"hypermass-cli/app_errors"
 	"hypermass-cli/config"
 	"io"
-	"log"
 	"net/http"
 	"strconv"
 	"time"
@@ -25,10 +24,8 @@ func GetConfigurationForStream(hypermassProfile config.HypermassProfile, streamI
 	// Create the request
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
-		log.Println(err)
-		log.Println("Failed to authenticate, unable to construct auth request. Please report this message to support")
 		return BulkStreamConfiguration{}, &app_errors.AuthenticationFailedError{
-			Message: "could not build the configuration request",
+			Message: fmt.Sprintf("could not build the configuration request, please report this to support: %v", err),
 		}
 	}
 
@@ -40,10 +37,8 @@ func GetConfigurationForStream(hypermassProfile config.HypermassProfile, streamI
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
-		log.Println(err)
-		log.Println("Failed to authenticate, unable to connect to service")
 		return BulkStreamConfiguration{}, &app_errors.ConnectionLostError{
-			Message: "could not reach the service",
+			Message: fmt.Sprintf("could not reach the service: %v", err),
 		}
 	}
 	defer resp.Body.Close()
@@ -59,7 +54,6 @@ func GetConfigurationForStream(hypermassProfile config.HypermassProfile, streamI
 
 	var result BulkStreamConfiguration
 	if err := json.Unmarshal(body, &result); err != nil {
-		fmt.Println("Can not unmarshal JSON")
 		return BulkStreamConfiguration{}, &app_errors.ConnectionLostError{
 			Message: "the service sent a configuration we could not read",
 		}
@@ -79,22 +73,18 @@ func configurationRefusal(resp *http.Response, streamId string) error {
 	switch resp.StatusCode {
 	case http.StatusUnauthorized:
 		//the credentials were refused, so every other stream will be refused the same way
-		log.Println("Not authorized to upload to this stream. The key may be wrong or revoked, or the " +
-			"account may be locked - sign in at hypermass.io to check")
 		return &app_errors.CredentialsRejectedError{
-			Message: "this key was rejected",
+			Message: "this key was rejected - it may be wrong or revoked, or the account may be locked, sign in at hypermass.io to check",
 			Advised: retryAfter,
 		}
 
 	case http.StatusForbidden:
-		log.Printf("Not authorized to upload to stream %s, it must be owned by your account", streamId)
 		return &app_errors.StreamAccessDeniedError{
-			Message: "this key may not publish to " + streamId,
+			Message: "this key may not publish to " + streamId + ", it must be owned by your account",
 			Advised: retryAfter,
 		}
 
 	case http.StatusNotFound:
-		log.Println("Unable to get stream metadata, stream not found")
 		return &app_errors.StreamNotFoundError{
 			Message: "there is no stream with this id",
 			Advised: retryAfter,

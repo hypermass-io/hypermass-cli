@@ -131,3 +131,29 @@ func TestAppendRefusesSubscriptionTargetsThatAreNotAList(t *testing.T) {
 		t.Error("expected a non-list subscription-targets to be refused")
 	}
 }
+
+func TestAppendPublicationAddsToPublicationSources(t *testing.T) {
+	original := `subscription-targets:
+  - key: _first
+    target-directory: /data/first
+publication-sources: []
+`
+	entry := PublicationConfiguration{Key: "_new", TargetDirectory: "/data/hypermass/publications/_new", DisposerType: "delete-on-success"}
+
+	updated, err := appendPublication([]byte(original), entry)
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	expected := `subscription-targets:
+  - key: _first
+    target-directory: /data/first
+publication-sources:
+  - key: _new
+    target-directory: /data/hypermass/publications/_new
+    disposer-type: delete-on-success
+`
+	if string(updated) != expected {
+		t.Errorf("unexpected result\n--- got ---\n%s\n--- expected ---\n%s", updated, expected)
+	}
+}
