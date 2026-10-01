@@ -7,7 +7,6 @@ import (
 	"hypermass-cli/app_errors"
 	"hypermass-cli/config"
 	"io"
-	"log"
 	"net/http"
 	"strconv"
 	"time"
@@ -24,9 +23,9 @@ func GetAuthorizedSubscriptionUrl(auth config.HypermassAuth, streamId string, la
 	// Create the request
 	req, err := http.NewRequest("GET", authenticationUrl, nil)
 	if err != nil {
-		log.Println(err)
-		log.Println("Failed to authenticate, unable to construct auth request. Please report this message to support")
-		return "", &app_errors.AuthenticationFailedError{Message: "could not build the authentication request"}
+		return "", &app_errors.AuthenticationFailedError{
+			Message: fmt.Sprintf("could not build the authentication request, please report this to support: %v", err),
+		}
 	}
 
 	// Add the Authorization header
@@ -37,25 +36,19 @@ func GetAuthorizedSubscriptionUrl(auth config.HypermassAuth, streamId string, la
 	client := &http.Client{} // follows redirects by default
 	resp, err := client.Do(req)
 	if err != nil {
-		if resp != nil {
-			log.Printf("authentication failed while connecting to service: status=%d err=%v", resp.StatusCode, err)
-		} else {
-			log.Printf("authentication failed while connecting to service: err=%v", err)
-		}
-		return "", &app_errors.ConnectionLostError{Message: "could not reach the authentication service"}
+		return "", &app_errors.ConnectionLostError{Message: fmt.Sprintf("could not reach the authentication service: %v", err)}
 	}
 
 	defer resp.Body.Close()
 	body, err := io.ReadAll(resp.Body) // response body is []byte
 
 	if resp.StatusCode != 200 {
-		log.Printf("authentication failed while connecting to service: status=%d message=%s", resp.StatusCode, body)
 		return "", subscriptionRefusal(resp)
 	}
 
 	var result AuthResponse
 	if err := json.Unmarshal(body, &result); err != nil { // Parse []byte to go struct pointer
-		fmt.Println("Can not unmarshal JSON")
+		return "", &app_errors.ConnectionLostError{Message: "the authentication service sent an unreadable response"}
 	}
 
 	location := result.ConnectionURL

@@ -167,6 +167,7 @@ func (s *Subscription) startInfoChannelReader() error {
 		s.Auth, s.SubscriptionConfiguration.Key, s.LastPayloadId)
 
 	if authErr != nil {
+		log.Printf("Unable to authorise the subscription to %s: %v", s.StreamId, authErr)
 		return authErr
 	}
 

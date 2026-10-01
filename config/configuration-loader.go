@@ -115,12 +115,15 @@ func LoadProfile() HypermassProfile {
 	return hypermassProfile
 }
 
-// ReadConfiguration reads hypermass-config.yaml
+// ReadConfiguration reads hypermass-config.yaml. A missing file reads as an empty configuration, like an empty file.
 func ReadConfiguration() (HypermassConfig, error) {
 	var configuration HypermassConfig
 	path := filepath.Join(CreateOrGetConfigPath(), "hypermass-config.yaml")
 
 	data, err := os.ReadFile(path)
+	if errors.Is(err, fs.ErrNotExist) {
+		return configuration, nil
+	}
 	if err != nil {
 		return HypermassConfig{}, fmt.Errorf("cannot read config file %s: %w", path, err)
 	}
@@ -133,24 +136,34 @@ func ReadConfiguration() (HypermassConfig, error) {
 }
 
 func LoadSecretKey() HypermassAuth {
+	auth, err := ReadSecretKey()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	return auth
+}
+
+// ReadSecretKey reads auth.yaml
+func ReadSecretKey() (HypermassAuth, error) {
 	var auth HypermassAuth
 
 	path := filepath.Join(CreateOrGetConfigPath(), "auth.yaml")
 
 	data, err := os.ReadFile(path)
 	if err != nil {
-		log.Fatalf("cannot read config file %s: %s", path, err)
+		return HypermassAuth{}, fmt.Errorf("cannot read config file %s: %w", path, err)
 	}
 
 	if err := yaml.Unmarshal(data, &auth); err != nil {
-		log.Fatalf("invalid YAML in %s: %s", path, err)
+		return HypermassAuth{}, fmt.Errorf("invalid YAML in %s: %w", path, err)
 	}
 
 	if !(auth.Type == "bearer-token") {
-		log.Fatalf("Unknown auth type: %s", auth.Type)
+		return HypermassAuth{}, fmt.Errorf("Unknown auth type: %s", auth.Type)
 	}
 
-	return auth
+	return auth, nil
 }
 
 //TODO it would be nice if we can warn users about upcoming client deprecation somehow

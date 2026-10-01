@@ -21,6 +21,11 @@ go build
 ```
 The executable will be called "hypermass"
 
+Building in local mode (for testing against a mocked service) is similar;
+```bash
+go build -tags local .
+```
+
 ```bash
 # build for Windows
 GOOS=windows GOARCH=amd64 go build -o hypermass.exe main.go
