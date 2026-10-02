@@ -23,7 +23,7 @@ func Publish(streamId string) {
 		stop(fmt.Sprintf("❌ %v", err))
 	}
 	if !auth.HasKey() {
-		stop("⚠️ Publishing needs a free account: add your access key with 'hypermass init'.")
+		stop("⚠️ Publishing needs a (free) account: add your access key with 'hypermass login'.")
 	}
 
 	for _, existing := range configuration.PublicationConfigurations {

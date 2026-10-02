@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"fmt"
 	"hypermass-cli/commands/info-command"
 	"hypermass-cli/config"
 
@@ -13,11 +14,16 @@ var infoCmd = &cobra.Command{
 	Short: "Prints information about this tool and it's configuration",
 	Long:  `Prints information about this tool and it's configuration.`,
 	Run: func(cmd *cobra.Command, args []string) {
-		if config.ExistingConfigurationPath() {
-			info_command.PrintInfo(config.CreateOrGetConfigPath())
-		} else {
-			info_command.PrintNotYetConfiguredMessage()
+		if !config.ExistingConfigurationPath() {
+			info_command.PrintInfo("n/a - created on first use", false)
+			return
 		}
+
+		auth, err := config.ReadSecretKey()
+		if err != nil {
+			fmt.Printf("❌ %v\n", err)
+		}
+		info_command.PrintInfo(config.CreateOrGetConfigPath(), auth.HasKey())
 	},
 }
 

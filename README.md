@@ -8,38 +8,40 @@ You can download the latest pre-compiled binaries for your operating system from
 
 These can be run directly in the terminal, or installed - Installation instructions here [Installation Guide](https://docs.hypermass.io/docs/cli/download-and-install).
 
-## Initialising the configuration
-You will need to initialise the configuration directory on the first run. 
-This will prompt you to enter credentials from your account (you can create one here if you have signed up: https://hypermass.io/access-keys).
-
-Note: if you have a stream in mind to test with, then grab the "key" from the subscribe page of that stream and have it 
-ready. You can drop it into "init" and get started faster.
+## Subscribing to Data
+Copy a stream's ID from its page on [hypermass.io](https://hypermass.io), then;
 ```bash
-hypermass init
+hypermass subscribe <stream id>
+hypermass sync
 ```
-Input the appropriate data as prompted.
+Files arrive in `~/hypermass/subscriptions/<stream id>` as they are published. Subscribing works straight away, within a
+free daily allowance per address.
 
-You can print out the configuration location with this command;
+## Signing in
+An access key from your account gives you a larger allowance and lets you publish. Create one at
+https://hypermass.io/access-keys, then;
+```bash
+hypermass login
+```
+
+## Publishing Data
+```bash
+hypermass publish <stream id>
+```
+Files you place in `~/hypermass/publications/<stream id>` are published to the stream, then deleted.
+
+## Configuration
+The hypermass-config.yaml configuration file says what to subscribe and publish to, and where the files go. You can
+print its location with;
 ```bash
 hypermass info
 ```
+Edit it however you need, then apply the changes to a running sync with `hypermass reload`. Full configuration guide
+here [Configuration Guide](https://docs.hypermass.io/docs/cli/configuration).
 
-The hypermass-config.yaml configuration file tells the hypermass cli command what to subscribe to and where to put the
-result. You can now edit the "hypermass-config.yaml" however you need. Full configuration guide here [Configuration Guide](https://docs.hypermass.io/docs/cli/configuration).
-You may want to back up the hypermass-config.yaml files used as part of deployments (e.g. in a git repo) - it's plain text and contains no security details.
-
-We advise leaving the auth.yml alone unless you want to change keys. We advise against backing the key value up for 
-security reasons, but it's easy enough to generate a new key here: https://hypermass.io/access-keys.
-
-### Subscribing to Data
-If you added a stream key in the init command you're all set (or subsequently configured it, per the [Configuration Guide](https://docs.hypermass.io/docs/cli/configuration)), just run;
-```bash
-./hypermass sync
-```
-
-Streams that you are subscribed to will appear in;
-    <<HOME>>/hypermass/data/subscribe/hypermass-status
-    <<HOME>>/hypermass/data/subscribe/arbitrary-name
+You may want to back up the hypermass-config.yaml file used as part of deployments (e.g. in a git repo) - it's plain
+text and contains no security details. The access key lives separately, in auth.yaml, which we advise against backing
+up; a new key is easy to create at https://hypermass.io/access-keys.
 
 ## Key Features
 * **File-Based Configuration:** Human-readable YAML setup. Easy to back up, version control, etc. No complex database or registry entries required.

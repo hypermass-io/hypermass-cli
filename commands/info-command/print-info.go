@@ -5,7 +5,8 @@ import (
 	"hypermass-cli/app_constants"
 )
 
-func PrintInfo(configLocation string) {
+// PrintInfo prints the version, where the configuration lives, and whether an access key is saved.
+func PrintInfo(configLocation string, hasKey bool) {
 
 	fmt.Printf("<=> Hypermass CLI <=>\n")
 	fmt.Printf("---------------------\n")
@@ -14,11 +15,10 @@ func PrintInfo(configLocation string) {
 	fmt.Printf("Build date:                %s\n", app_constants.BuildDate)
 	fmt.Printf("Commit:                    %s\n", app_constants.Commit)
 	fmt.Printf("Hypermass Config Location:  %s\n", configLocation)
-}
 
-func PrintNotYetConfiguredMessage() {
-
-	PrintInfo("n/a")
-
-	fmt.Printf("\n## Please run 'hypermass init' to initialise the configuration. ##\n")
+	if hasKey {
+		fmt.Printf("Access key:                saved\n")
+	} else {
+		fmt.Printf("Access key:                none - subscribing within the free daily allowance ('hypermass login' to add one)\n")
+	}
 }
