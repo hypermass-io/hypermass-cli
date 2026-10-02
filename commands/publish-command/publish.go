@@ -8,7 +8,6 @@ import (
 	publication_helpers "hypermass-cli/commands/sync-command/publish/publication/publication-helpers"
 	"hypermass-cli/config"
 	"hypermass-cli/config/synclock"
-	"io/fs"
 	"os"
 	"path/filepath"
 )
@@ -20,12 +19,11 @@ func Publish(streamId string) {
 	}
 
 	auth, err := config.ReadSecretKey()
-	if errors.Is(err, fs.ErrNotExist) {
-		stop(fmt.Sprintf("⚠️ No access key found at %s, run 'hypermass init' to add one.",
-			filepath.Join(config.CreateOrGetConfigPath(), "auth.yaml")))
-	}
 	if err != nil {
 		stop(fmt.Sprintf("❌ %v", err))
+	}
+	if !auth.HasKey() {
+		stop("⚠️ Publishing needs a free account: add your access key with 'hypermass init'.")
 	}
 
 	for _, existing := range configuration.PublicationConfigurations {

@@ -106,3 +106,30 @@ func TestSubscribeCreatesAMissingConfigFile(t *testing.T) {
 		t.Errorf("unexpected config\n%s", created)
 	}
 }
+
+func TestSubscribeWithoutAKeyIsAnonymous(t *testing.T) {
+	var authorization []string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		authorization = r.Header.Values("Authorization")
+		_, _ = w.Write([]byte(`{"connectionUrl":"ws://localhost/unused"}`))
+	}))
+	t.Cleanup(server.Close)
+	original := app_constants.BulkAuthenticationApiUrl
+	app_constants.BulkAuthenticationApiUrl = server.URL + "/api/data/bulk/authorise/infochannel"
+	t.Cleanup(func() { app_constants.BulkAuthenticationApiUrl = original })
+
+	//a fresh machine: no key and no configuration
+	configHome := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", configHome)
+	t.Setenv("HOME", "/home/someone")
+
+	Subscribe("_abc")
+
+	if len(authorization) != 0 {
+		t.Errorf("expected no Authorization header, got %v", authorization)
+	}
+	created, err := os.ReadFile(filepath.Join(configHome, "hypermass", "hypermass-config.yaml"))
+	if err != nil || !strings.Contains(string(created), "key: _abc") {
+		t.Errorf("expected the subscription to be added, got %q (%v)", created, err)
+	}
+}

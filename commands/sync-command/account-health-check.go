@@ -23,6 +23,11 @@ const accountHealthInterval = 15 * time.Minute
 // The stream it asks about is chosen once, at startup. Any stream works, because what matters is what
 // the answer says about the credentials.
 func watchAccountHealth(ctx context.Context, hypermassProfile config.HypermassProfile) {
+	//an anonymous sync has no credentials to check
+	if !hypermassProfile.Auth.HasKey() {
+		return
+	}
+
 	streamId, ok := anyConfiguredStream(hypermassProfile)
 	if !ok {
 		return

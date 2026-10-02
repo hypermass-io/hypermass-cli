@@ -8,7 +8,7 @@ import (
 	"hypermass-cli/commands/sync-command/subscribe/subscription"
 )
 
-func ReportStatus(subscriptionPollersMap map[string]*subscription.Subscription, publicationPollersMap map[string]*publication.PublicationPoller) (string, error) {
+func ReportStatus(subscriptionPollersMap map[string]*subscription.Subscription, publicationPollersMap map[string]*publication.PublicationPoller, anonymous bool) (string, error) {
 	subscriptionStatuses := buildSubscriptionStatuses(subscriptionPollersMap)
 	publicationStatuses := buildPublicationStatuses(publicationPollersMap)
 
@@ -17,6 +17,7 @@ func ReportStatus(subscriptionPollersMap map[string]*subscription.Subscription, 
 	report := app_common.StatusReport{
 		Subscriptions:     subscriptionStatuses,
 		Publications:      publicationStatuses,
+		Anonymous:         anonymous,
 		AccountAlert:      alert,
 		AccountAlertSince: alertSince,
 	}

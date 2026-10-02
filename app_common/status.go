@@ -28,6 +28,9 @@ type StatusReport struct {
 	Subscriptions []SubscriptionStatus `json:"subscriptions"`
 	Publications  []PublicationStatus  `json:"publicationStatus"`
 
+	// Anonymous is true when the sync runs without an access key, within the free daily allowance
+	Anonymous bool `json:"anonymous"`
+
 	// AccountAlert indicates a general issue with account creds
 	AccountAlert      string    `json:"accountAlert"`
 	AccountAlertSince time.Time `json:"accountAlertSince"`

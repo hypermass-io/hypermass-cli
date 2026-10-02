@@ -23,7 +23,7 @@ func DownloadPayload(auth config.HypermassAuth, folderPath string, writer payloa
 	}
 
 	// Add the Authorization header
-	req.Header.Set("Authorization", "Bearer "+auth.Token)
+	auth.Authorize(req)
 
 	// Send the request
 	client := &http.Client{} // Note, this follows redirects by default - we need this to occur!

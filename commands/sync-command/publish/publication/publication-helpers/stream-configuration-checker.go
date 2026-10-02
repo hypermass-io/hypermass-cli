@@ -30,7 +30,7 @@ func GetConfigurationForStream(hypermassProfile config.HypermassProfile, streamI
 	}
 
 	// Add the Authorization header
-	req.Header.Set("Authorization", "Bearer "+hypermassProfile.Auth.Token)
+	hypermassProfile.Auth.Authorize(req)
 	req.Header.Set("User-Agent", "hypermass-cli/"+app_constants.HypermassCliVersion)
 
 	// Send the request

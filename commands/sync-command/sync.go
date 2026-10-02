@@ -33,10 +33,15 @@ func SyncRunner(hypermassProfile config.HypermassProfile) {
 	subscriptionPollers := subscription.LoadSubscriptionsFromSettings(ctx, hypermassProfile, commandBus)
 	publicationPollers := publish.LoadPublicationPollersFromSettings(ctx, hypermassProfile, commandBus)
 
+	configuration := hypermassProfile.Configuration
+	if len(configuration.SubscriptionConfigurations) == 0 && len(configuration.PublicationConfigurations) == 0 {
+		fmt.Println("No streams configured yet: add one with 'hypermass subscribe <stream id>'.")
+	}
+
 	//start the account health process that occasionally polls the API if there's no other activity
 	go watchAccountHealth(ctx, hypermassProfile)
 
-	register(commandBus, subscriptionPollers, publicationPollers)
+	register(commandBus, subscriptionPollers, publicationPollers, !hypermassProfile.Auth.HasKey())
 	registerReload(commandBus, &reloader{
 		ctx:                 ctx,
 		hypermassProfile:    hypermassProfile,
@@ -68,7 +73,7 @@ func SyncRunner(hypermassProfile config.HypermassProfile) {
 	publicationPollers.WG.Wait()
 }
 
-func register(bus *synclock.CommandBus, subscriptionPollers *subscription.SubscriptionPollers, publicationPollers *publication.PublicationPollers) {
+func register(bus *synclock.CommandBus, subscriptionPollers *subscription.SubscriptionPollers, publicationPollers *publication.PublicationPollers, anonymous bool) {
 
 	// replay command
 	bus.Register("status", func(req synclock.CommandRequest) synclock.CommandResponse {
@@ -76,7 +81,7 @@ func register(bus *synclock.CommandBus, subscriptionPollers *subscription.Subscr
 		subscriptionSnapshot := subscriptionPollers.Snapshot()
 		publicationsSnapshot := publicationPollers.Snapshot()
 
-		reportStatus, err := sync_status.ReportStatus(subscriptionSnapshot, publicationsSnapshot)
+		reportStatus, err := sync_status.ReportStatus(subscriptionSnapshot, publicationsSnapshot, anonymous)
 
 		if err != nil {
 			return synclock.CommandResponse{Success: false, Message: fmt.Sprintf("Unable to get status: %s", err)}

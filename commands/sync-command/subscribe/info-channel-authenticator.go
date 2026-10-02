@@ -29,7 +29,7 @@ func GetAuthorizedSubscriptionUrl(auth config.HypermassAuth, streamId string, la
 	}
 
 	// Add the Authorization header
-	req.Header.Set("Authorization", "Bearer "+auth.Token)
+	auth.Authorize(req)
 	req.Header.Set("User-Agent", "hypermass-cli/"+app_constants.HypermassCliVersion)
 
 	// Send the request

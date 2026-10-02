@@ -8,7 +8,6 @@ import (
 	"hypermass-cli/commands/sync-command/subscribe"
 	"hypermass-cli/config"
 	"hypermass-cli/config/synclock"
-	"io/fs"
 	"os"
 	"path/filepath"
 )
@@ -19,11 +18,8 @@ func Subscribe(streamId string) {
 		stop(fmt.Sprintf("❌ %v", err))
 	}
 
+	//without a key the subscription is anonymous, within the free daily allowance
 	auth, err := config.ReadSecretKey()
-	if errors.Is(err, fs.ErrNotExist) {
-		stop(fmt.Sprintf("⚠️ No access key found at %s, run 'hypermass init' to add one.",
-			filepath.Join(config.CreateOrGetConfigPath(), "auth.yaml")))
-	}
 	if err != nil {
 		stop(fmt.Sprintf("❌ %v", err))
 	}

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io/fs"
 	"log"
+	"net/http"
 	"os"
 	"path/filepath"
 
@@ -54,9 +55,22 @@ func (c HypermassConfig) BaseDirectoryOrDefault() (string, error) {
 	return filepath.Join(home, "hypermass"), nil
 }
 
+// HypermassAuth is the access key, empty when there is none. Without a key the CLI subscribes anonymously, within a
+// free daily allowance per address.
 type HypermassAuth struct {
 	Type  string `yaml:"type"`
 	Token string `yaml:"token"`
+}
+
+func (a HypermassAuth) HasKey() bool {
+	return a.Token != ""
+}
+
+// Authorize adds the access key to a request, leaving a request without one anonymous.
+func (a HypermassAuth) Authorize(req *http.Request) {
+	if a.HasKey() {
+		req.Header.Set("Authorization", "Bearer "+a.Token)
+	}
 }
 
 func ExistingConfigurationPath() bool {
@@ -144,13 +158,16 @@ func LoadSecretKey() HypermassAuth {
 	return auth
 }
 
-// ReadSecretKey reads auth.yaml
+// ReadSecretKey reads auth.yaml. A missing file reads as no key.
 func ReadSecretKey() (HypermassAuth, error) {
 	var auth HypermassAuth
 
 	path := filepath.Join(CreateOrGetConfigPath(), "auth.yaml")
 
 	data, err := os.ReadFile(path)
+	if errors.Is(err, fs.ErrNotExist) {
+		return HypermassAuth{}, nil
+	}
 	if err != nil {
 		return HypermassAuth{}, fmt.Errorf("cannot read config file %s: %w", path, err)
 	}

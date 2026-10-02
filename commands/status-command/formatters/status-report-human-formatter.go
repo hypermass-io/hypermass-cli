@@ -17,6 +17,9 @@ func FormatHumanReadableMessage(response *synclock.CommandResponse) {
 	}
 
 	fmt.Println("✅ Sync is running")
+	if statusReport.Anonymous {
+		fmt.Println("Running without an account, on the free daily allowance.")
+	}
 
 	//an account problem explains every row below, and a sync with no subscriptions still needs to see it
 	printAccountAlert(statusReport)
