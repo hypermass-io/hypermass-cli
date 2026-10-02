@@ -33,8 +33,18 @@ func LoadPublicationPollersFromSettings(ctx context.Context, hypermassProfile co
 	return publicationPollers
 }
 
+// errPublishingNeedsAnAccount is why a publication is held as failed without an access key. Short, as status shows it
+// in a narrow column.
+var errPublishingNeedsAnAccount = errors.New("needs an account (hypermass login)")
+
 // startPoller starts a publication poller and stores it, returning an error if there are issues
 func startPoller(parentCtx context.Context, publicationPollers *publication.PublicationPollers, publicationConfig config.PublicationConfiguration, hypermassProfile config.HypermassProfile) error {
+	//publishing is for accounts, so without a key the publication is held as failed and the sync carries on
+	if !hypermassProfile.Auth.HasKey() {
+		publicationPollers.Store(publicationConfig.Key, publication.NewFailedPublicationPoller(parentCtx, publicationConfig, hypermassProfile, errPublishingNeedsAnAccount))
+		return errPublishingNeedsAnAccount
+	}
+
 	publicationPoller, err := publication.NewPublicationPoller(parentCtx, publicationConfig, hypermassProfile)
 
 	if err != nil {
