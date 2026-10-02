@@ -3,6 +3,7 @@ package subscription
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"hypermass-cli/app_errors"
 	"hypermass-cli/commands/sync-command/helpers"
@@ -168,6 +169,12 @@ func (s *Subscription) startInfoChannelReader() error {
 
 	if authErr != nil {
 		log.Printf("Unable to authorise the subscription to %s: %v", s.StreamId, authErr)
+
+		var unknownAnchor *app_errors.UnknownAnchorError
+		if errors.As(authErr, &unknownAnchor) {
+			s.resumeFromEarliest()
+		}
+
 		return authErr
 	}
 
@@ -232,6 +239,16 @@ func (s *Subscription) startInfoChannelReader() error {
 			_ = s.writePongResponse(websocketConnection)
 		}
 
+	}
+}
+
+// resumeFromEarliest records "earliest" as where to resume, for when the service no longer knows the last payload
+// received. The replacement subscription then replays everything still available.
+func (s *Subscription) resumeFromEarliest() {
+	log.Printf("Last payload %s is no longer known on stream %s, replaying everything still available", s.LastPayloadId, s.StreamId)
+
+	if err := subscriptionhelpers.WriteLastPayloadId(s.FolderPath, s.StreamId, "earliest"); err != nil {
+		log.Printf("Unable to record where stream %s resumes from: %v", s.StreamId, err)
 	}
 }
 

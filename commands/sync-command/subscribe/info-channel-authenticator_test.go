@@ -135,3 +135,16 @@ func TestRetryAfterIgnoresWhatItCannotRead(t *testing.T) {
 		}
 	}
 }
+
+// The service refuses a payload to resume after that the stream never had, so the caller can decide what to do instead.
+func TestUnprocessableIsAnUnknownAnchor(t *testing.T) {
+	err := subscriptionRefusal(responseWith(http.StatusUnprocessableEntity, ""))
+
+	var unknownAnchor *app_errors.UnknownAnchorError
+	if !errors.As(err, &unknownAnchor) {
+		t.Fatalf("expected an unknown anchor, got %T", err)
+	}
+	if unknownAnchor.RetryAfter() != 0 {
+		t.Errorf("expected to resume straight away, got %v", unknownAnchor.RetryAfter())
+	}
+}

@@ -88,6 +88,11 @@ func subscriptionRefusal(resp *http.Response) error {
 			Advised: retryAfter,
 		}
 
+	case http.StatusUnprocessableEntity:
+		return &app_errors.UnknownAnchorError{
+			Message: "the payload to resume after is not known on this stream",
+		}
+
 	case http.StatusTooManyRequests:
 		return &app_errors.RetryLaterError{
 			Message:            "asking for this feed too often",

@@ -35,6 +35,10 @@ const (
 	// RetryLaterRetryDelay applies when the service asked us to wait but named no period.
 	RetryLaterRetryDelay = 60 * time.Second
 
+	// UnknownAnchorRetryDelay applies when the payload to resume after is unknown. The subscription resumes from the
+	// earliest payload instead, straight away.
+	UnknownAnchorRetryDelay = 0 * time.Second
+
 	// DefaultRetryDelay applies to a failure that carries no delay of its own, such as an error from
 	// outside this package.
 	DefaultRetryDelay = 60 * time.Second
@@ -213,6 +217,25 @@ func (e *StreamNotFoundError) RetryAfter() time.Duration {
 
 func (e *StreamNotFoundError) Summary() string {
 	return "no such stream - check the id"
+}
+
+// UnknownAnchorError indicates that the service does not know the payload a subscription asked to resume after, such
+// as one long since removed, or a mistyped id given to replay. It has its own type so a rejoining subscription can
+// resume from the earliest payload instead, and replay can refuse the id.
+type UnknownAnchorError struct {
+	Message string
+}
+
+func (e *UnknownAnchorError) Error() string {
+	return e.Message
+}
+
+func (e *UnknownAnchorError) RetryAfter() time.Duration {
+	return UnknownAnchorRetryDelay
+}
+
+func (e *UnknownAnchorError) Summary() string {
+	return "last payload unknown - replaying"
 }
 
 // RetryLaterError indicates that the request was valid but should be retried after a delay

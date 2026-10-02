@@ -2,7 +2,10 @@ package subscription
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"hypermass-cli/app_errors"
+	"hypermass-cli/commands/sync-command/subscribe"
 	subscription_status "hypermass-cli/commands/sync-command/subscribe/subscription/subscription-status"
 	"hypermass-cli/config"
 	"hypermass-cli/config/synclock"
@@ -100,6 +103,16 @@ func registerCommands(bus *synclock.CommandBus, subscriptions *SubscriptionPolle
 
 		if subscription.StartError != nil {
 			return synclock.CommandResponse{Success: false, Message: fmt.Sprintf("Stream with id '%s' failed to start: %s", streamId, subscription.StartError)}
+		}
+
+		//checked first, so an id the stream never had changes nothing rather than replaying from the start
+		if _, err := subscribe.GetAuthorizedSubscriptionUrl(subscription.Auth, streamId, payloadId); err != nil {
+			var unknownAnchor *app_errors.UnknownAnchorError
+			if errors.As(err, &unknownAnchor) {
+				return synclock.CommandResponse{Success: false, Message: fmt.Sprintf("Payload '%s' is not known on stream '%s', nothing changed", payloadId, streamId)}
+			}
+
+			return synclock.CommandResponse{Success: false, Message: fmt.Sprintf("Unable to check payload '%s' (%s), nothing changed", payloadId, err)}
 		}
 
 		_, err := subscriptions.ResetToPayloadId(streamId, payloadId)
