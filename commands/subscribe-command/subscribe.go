@@ -81,7 +81,7 @@ func checkCanSubscribe(auth config.HypermassAuth, streamId string) (string, erro
 
 	switch {
 	case errors.As(err, &insufficientAllowance):
-		return "Your account has no allowance left, files will arrive once it resets.", nil
+		return insufficientAllowance.Error(), nil
 	case errors.As(err, &notFound):
 		return "", fmt.Errorf("there is no stream with the id %s", streamId)
 	case errors.As(err, &accessDenied):

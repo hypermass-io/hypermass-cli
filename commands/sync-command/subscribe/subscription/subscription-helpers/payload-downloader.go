@@ -3,6 +3,7 @@ package subscription_helpers
 import (
 	"fmt"
 	"hypermass-cli/app_errors"
+	"hypermass-cli/commands/sync-command/subscribe"
 	"hypermass-cli/commands/sync-command/subscribe/messages"
 	"hypermass-cli/commands/sync-command/subscribe/subscription/payload_writers"
 	"hypermass-cli/config"
@@ -51,7 +52,7 @@ func DownloadPayload(auth config.HypermassAuth, folderPath string, writer payloa
 
 	} else if resp.StatusCode == http.StatusPaymentRequired {
 		//Hypermass API rejected the request due to insufficient allowance
-		return &app_errors.InsufficientAllowanceError{Message: "account Limits exceeded, please see https://hypermass.io/usage"}
+		return app_errors.AllowanceUsedUp(!auth.HasKey(), subscribe.RetryAfterFrom(resp))
 	} else if resp.StatusCode == http.StatusNotFound {
 		//removed by its publisher while it waited to be downloaded, whether the API or the CDN answered
 		return &app_errors.PayloadRemovedError{Message: fmt.Sprintf("payload %s was removed by its publisher", msg.PayloadId)}

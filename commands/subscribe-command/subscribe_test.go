@@ -33,7 +33,7 @@ func TestCheckCanSubscribe(t *testing.T) {
 		refusal string
 	}{
 		{http.StatusOK, "", ""},
-		{http.StatusPaymentRequired, "no allowance left", ""},
+		{http.StatusPaymentRequired, "account allowance used up", ""},
 		{http.StatusNotFound, "", "no stream with the id _abc"},
 		{http.StatusForbidden, "", "not available to your access key"},
 		{http.StatusUnauthorized, "", "access key was rejected"},

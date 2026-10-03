@@ -43,7 +43,7 @@ func GetAuthorizedSubscriptionUrl(auth config.HypermassAuth, streamId string, la
 	body, err := io.ReadAll(resp.Body) // response body is []byte
 
 	if resp.StatusCode != 200 {
-		return "", subscriptionRefusal(resp)
+		return "", subscriptionRefusal(resp, !auth.HasKey())
 	}
 
 	var result AuthResponse
@@ -60,15 +60,12 @@ func GetAuthorizedSubscriptionUrl(auth config.HypermassAuth, streamId string, la
 //
 // The status says what it is: the allowance is spent, the key is wrong, the feed is out of reach, or
 // there is no such stream. Every status returns an error, including one this client does not recognise.
-func subscriptionRefusal(resp *http.Response) error {
-	retryAfter := retryAfterFrom(resp)
+func subscriptionRefusal(resp *http.Response, anonymous bool) error {
+	retryAfter := RetryAfterFrom(resp)
 
 	switch resp.StatusCode {
 	case http.StatusPaymentRequired:
-		return &app_errors.InsufficientAllowanceError{
-			Message: "insufficient allowance to subscribe to this feed",
-			Advised: retryAfter,
-		}
+		return app_errors.AllowanceUsedUp(anonymous, retryAfter)
 
 	case http.StatusUnauthorized:
 		return &app_errors.CredentialsRejectedError{
@@ -107,8 +104,8 @@ func subscriptionRefusal(resp *http.Response) error {
 	}
 }
 
-// retryAfterFrom reads the server's advice on when to retry (if provided).
-func retryAfterFrom(resp *http.Response) time.Duration {
+// RetryAfterFrom reads the server's advice on when to retry (if provided).
+func RetryAfterFrom(resp *http.Response) time.Duration {
 	header := resp.Header.Get("Retry-After")
 	if header == "" {
 		return 0

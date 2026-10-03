@@ -1,6 +1,9 @@
 package app_errors
 
-import "time"
+import (
+	"fmt"
+	"time"
+)
 
 // How long to wait before retrying, by kind of failure.
 //
@@ -65,6 +68,30 @@ type InsufficientAllowanceError struct {
 	// Advised is the delay the service asked for. Zero when it gave no advice, in which case the
 	// default for this kind of failure applies.
 	Advised time.Duration
+
+	// Anonymous is true when there is no access key, so the free daily allowance is the one used up rather than an
+	// account's monthly one
+	Anonymous bool
+}
+
+// AllowanceUsedUp describes a spent allowance: the free daily one without an access key, an account's with one.
+func AllowanceUsedUp(anonymous bool, advised time.Duration) *InsufficientAllowanceError {
+	message := "account allowance used up, see https://hypermass.io/usage"
+	if anonymous {
+		message = "free daily allowance used up, it resets " + resetsIn(advised) +
+			" - sign up free at https://hypermass.io for more, then run 'hypermass login'"
+	}
+
+	return &InsufficientAllowanceError{Message: message, Advised: advised, Anonymous: anonymous}
+}
+
+func resetsIn(wait time.Duration) string {
+	if wait <= 0 {
+		return "at midnight UTC"
+	}
+
+	minutes := int(wait.Round(time.Minute).Minutes())
+	return fmt.Sprintf("in %dh %dm", minutes/60, minutes%60)
 }
 
 func (e *InsufficientAllowanceError) Error() string {
@@ -80,6 +107,10 @@ func (e *InsufficientAllowanceError) RetryAfter() time.Duration {
 }
 
 func (e *InsufficientAllowanceError) Summary() string {
+	if e.Anonymous {
+		return "free daily allowance used up"
+	}
+
 	return "waiting on allowance"
 }
 
