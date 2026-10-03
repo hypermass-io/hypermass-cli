@@ -219,6 +219,16 @@ func (e *StreamNotFoundError) Summary() string {
 	return "no such stream - check the id"
 }
 
+// PayloadRemovedError indicates that a payload was removed by its publisher after its notification was sent, so it is
+// skipped rather than retried.
+type PayloadRemovedError struct {
+	Message string
+}
+
+func (e *PayloadRemovedError) Error() string {
+	return e.Message
+}
+
 // UnknownAnchorError indicates that the service does not know the payload a subscription asked to resume after, such
 // as one long since removed, or a mistyped id given to replay. It has its own type so a rejoining subscription can
 // resume from the earliest payload instead, and replay can refuse the id.

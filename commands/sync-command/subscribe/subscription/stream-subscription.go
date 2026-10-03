@@ -300,12 +300,19 @@ func (s *Subscription) StartFileQueueProcessor() {
 				fmt.Printf("Downloading payload %s for stream %s \n", msg.PayloadId, msg.StreamId)
 
 				downloadPayloadErr := subscriptionhelpers.DownloadPayload(s.Auth, s.FolderPath, s.Writer, *msg)
-				if downloadPayloadErr != nil {
+
+				var removed *app_errors.PayloadRemovedError
+				payloadRemoved := errors.As(downloadPayloadErr, &removed)
+
+				if payloadRemoved {
+					log.Printf("Payload %s on stream %s was removed by its publisher, skipping it", msg.PayloadId, msg.StreamId)
+				} else if downloadPayloadErr != nil {
 					log.Printf("Failed to download: %s\n", downloadPayloadErr)
 					s.restartSubscriptionWithReason(downloadPayloadErr)
 					return //exit the "StartFileQueueProcessor" loop completely - this instance won't recover
 				}
 
+				//a skipped payload is recorded too, so a reconnect resumes after it rather than asking for it again
 				writeEtagErr := subscriptionhelpers.WriteLastPayloadId(s.FolderPath, s.StreamId, msg.PayloadId)
 				if writeEtagErr != nil {
 					log.Println("Failed to record the last payload id (may result in repeated message): ", writeEtagErr)
@@ -313,7 +320,9 @@ func (s *Subscription) StartFileQueueProcessor() {
 					return //exit the "StartFileQueueProcessor" loop completely - this instance won't recover
 				}
 
-				fmt.Printf("Received payload %s for stream %s \n", msg.PayloadId, msg.StreamId)
+				if !payloadRemoved {
+					fmt.Printf("Received payload %s for stream %s \n", msg.PayloadId, msg.StreamId)
+				}
 				s.LastPayloadId = msg.PayloadId
 			}
 
