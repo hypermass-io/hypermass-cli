@@ -14,7 +14,7 @@ Copy a stream's ID from its page on [hypermass.io](https://hypermass.io), then;
 hypermass subscribe <stream id>
 hypermass sync
 ```
-Files arrive in `~/hypermass/subscriptions/<stream id>` as they are published. Subscribing works straight away, within a
+Files arrive in `<home folder>/hypermass/subscriptions/<stream id>` as they are published. Subscribing works straight away, within a
 free daily allowance per address.
 
 ## Signing in
@@ -28,7 +28,7 @@ hypermass login
 ```bash
 hypermass publish <stream id>
 ```
-Files you place in `~/hypermass/publications/<stream id>` are published to the stream, then deleted.
+Files you place in `<home folder>/hypermass/publications/<stream id>` are published to the stream, then deleted.
 
 ## Configuration
 The hypermass-config.yaml configuration file says what to subscribe and publish to, and where the files go. You can
