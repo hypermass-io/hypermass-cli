@@ -2,6 +2,7 @@ package subscription_helpers
 
 import (
 	"fmt"
+	"hypermass-cli/app_constants"
 	"hypermass-cli/app_errors"
 	"hypermass-cli/commands/sync-command/subscribe"
 	"hypermass-cli/commands/sync-command/subscribe/messages"
@@ -25,6 +26,7 @@ func DownloadPayload(auth config.HypermassAuth, folderPath string, writer payloa
 
 	// Add the Authorization header
 	auth.Authorize(req)
+	req.Header.Set("User-Agent", app_constants.UserAgent())
 
 	// Send the request
 	client := &http.Client{} // Note, this follows redirects by default - we need this to occur!

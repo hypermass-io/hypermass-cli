@@ -30,7 +30,7 @@ func GetAuthorizedSubscriptionUrl(auth config.HypermassAuth, streamId string, la
 
 	// Add the Authorization header
 	auth.Authorize(req)
-	req.Header.Set("User-Agent", "hypermass-cli/"+app_constants.HypermassCliVersion)
+	req.Header.Set("User-Agent", app_constants.UserAgent())
 
 	// Send the request
 	client := &http.Client{} // follows redirects by default

@@ -62,6 +62,7 @@ func upload(signedURL string, pr *io.PipeReader, writer *multipart.Writer) (*Upl
 		return nil, fmt.Errorf("failed to upload payload to signed url: %s", err)
 	}
 	req.Header.Set("Content-Type", writer.FormDataContentType())
+	req.Header.Set("User-Agent", app_constants.UserAgent())
 
 	//the actual upload
 	resp, err := client.Do(req)
@@ -116,6 +117,7 @@ func getSignedUploadURL(token string, streamId string) (string, error) {
 	if token != "" {
 		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
 	}
+	req.Header.Set("User-Agent", app_constants.UserAgent())
 
 	resp, err := client.Do(req)
 	if err != nil {

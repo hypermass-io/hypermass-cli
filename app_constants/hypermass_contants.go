@@ -9,6 +9,12 @@ var HypermassCliVersion string = "v0.0.0-dev"
 var Commit string = "none"
 var BuildDate string = "unknown"
 
+// UserAgent identifies the CLI and its version on every request to Hypermass, so its traffic can be told apart from
+// other clients.
+func UserAgent() string {
+	return "hypermass-cli/" + HypermassCliVersion
+}
+
 // GetBulkAuthenticationApiUrl constructs the full URL using the base URL and streamId.
 func GetBulkAuthenticationApiUrl(streamId string, lastPayload string) string {
 	if lastPayload != "" {

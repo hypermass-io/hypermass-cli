@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"hypermass-cli/app_constants"
 	"hypermass-cli/app_errors"
 	"hypermass-cli/commands/sync-command/helpers"
 	"hypermass-cli/commands/sync-command/subscribe"
@@ -14,6 +15,7 @@ import (
 	subscription_status "hypermass-cli/commands/sync-command/subscribe/subscription/subscription-status"
 	"hypermass-cli/config"
 	"log"
+	"net/http"
 	"net/url"
 	"sync"
 	"time"
@@ -188,7 +190,7 @@ func (s *Subscription) startInfoChannelReader() error {
 		return websocketParseError
 	}
 
-	websocketConnection, _, websocketError := websocket.DefaultDialer.Dial(websocketUrl.String(), nil)
+	websocketConnection, _, websocketError := websocket.DefaultDialer.Dial(websocketUrl.String(), http.Header{"User-Agent": {app_constants.UserAgent()}})
 	if websocketError != nil {
 		log.Printf("Unable to connect to info channel, cause: %v", websocketError)
 		return &app_errors.ConnectionLostError{Message: "Unable to connect to info channel"}
