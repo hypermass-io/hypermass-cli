@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"hypermass-cli/app_common"
 	"hypermass-cli/app_constants"
 	"os"
 
@@ -28,4 +29,5 @@ func Execute() {
 }
 
 func init() {
+	rootCmd.PersistentFlags().BoolVar(&app_common.Verbose, "verbose", false, "show the technical detail behind messages")
 }

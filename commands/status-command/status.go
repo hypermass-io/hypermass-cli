@@ -3,6 +3,7 @@ package status_command
 import (
 	"encoding/json"
 	"fmt"
+	"hypermass-cli/app_common"
 	"hypermass-cli/commands/status-command/formatters"
 	"hypermass-cli/config/synclock"
 	"os"
@@ -40,7 +41,10 @@ func Status(format string) {
 	}
 
 	if err != nil {
-		fmt.Printf("⚠️ Could not contact hypermass sync process - please check that it is running. Error: %v\n", err)
+		fmt.Println("⚠️ Could not contact hypermass sync process - please check that it is running.")
+		if app_common.Verbose {
+			fmt.Printf("Error: %v\n", err)
+		}
 		os.Exit(1)
 	}
 

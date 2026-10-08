@@ -2,6 +2,7 @@ package replay_command
 
 import (
 	"fmt"
+	"hypermass-cli/app_common"
 	"hypermass-cli/config/synclock"
 	"os"
 )
@@ -16,7 +17,10 @@ func Replay(streamKey string, payloadID string) {
 	result, err := synclock.Dispatch("replay", params)
 
 	if err != nil {
-		fmt.Printf("⚠️ Could not contact hypermass sync process - please check that it is running. Error: %v\n", err)
+		fmt.Println("⚠️ Could not contact hypermass sync process - please check that it is running.")
+		if app_common.Verbose {
+			fmt.Printf("Error: %v\n", err)
+		}
 		// TODO This is where we could put fallback logic to edit the state.yaml manually.
 		//  needs some thought - is this a good idea?
 		//  e.g. how to differentiate latest, earliest and not-yet-initialised
