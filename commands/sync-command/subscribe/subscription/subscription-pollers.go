@@ -144,7 +144,7 @@ func (s *SubscriptionPollers) ResetToPayloadId(streamId string, payloadId string
 	}
 
 	newSub, err := NewSubscription(oldSub.ParentCtx, oldSub.SubscriptionConfiguration, oldSub.Auth,
-		time.Duration(0), subscription_status.NewInitialState(time.Duration(0)))
+		time.Duration(0), subscription_status.NewInitialState(time.Duration(0)), hashMismatch{})
 	if err != nil {
 		return nil, err
 	}
@@ -171,7 +171,7 @@ func (s *SubscriptionPollers) handleRequestRestart(streamId string, reason error
 	// Stops oldSub and replaces it once its processors have finished. Asynchronous because the caller is one of
 	// those processors, so waiting for them here would never finish.
 	go func() {
-		log.Printf("Connection lost for stream %s", oldSub.StreamId)
+		log.Printf("Stopping stream %s to retry", oldSub.StreamId)
 
 		oldSub.Cancel()
 		log.Printf("⏳ Waiting for %s cleanup...", streamId)
@@ -179,12 +179,19 @@ func (s *SubscriptionPollers) handleRequestRestart(streamId string, reason error
 
 		log.Printf("Subscriber for %s stopped, reason: %s", streamId, reason)
 
-		log.Println("Retrying connection to " + oldSub.StreamId + " in " + duration.String() + "...")
+		log.Println("Retrying stream " + oldSub.StreamId + " in " + duration.String() + "...")
 
 		waitingState := subscription_status.NewWaitingAfterErrorState(duration, summaryOf(reason))
 
+		//only a mismatch carries the count on, so the next retry of the payload waits longer
+		carried := hashMismatch{}
+		var mismatch *app_errors.PayloadHashMismatchError
+		if errors.As(reason, &mismatch) {
+			carried = oldSub.hashMismatch
+		}
+
 		newSub, err := NewSubscription(oldSub.ParentCtx, oldSub.SubscriptionConfiguration, oldSub.Auth,
-			duration, waitingState)
+			duration, waitingState, carried)
 		if err != nil {
 			log.Printf("unable to handle stopped subscription %s - failed to create replacement: %v", streamId, err)
 			return

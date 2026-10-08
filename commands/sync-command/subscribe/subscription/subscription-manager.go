@@ -32,7 +32,7 @@ func LoadSubscriptionsFromSettings(parentCtx context.Context, hypermassProfile c
 // startSubscription starts a subscription and registers it in subscriptionPollers
 func startSubscription(parentCtx context.Context, subscriptionPollers *SubscriptionPollers, subscriptionConfig config.SubscriptionConfiguration, hypermassProfile config.HypermassProfile) error {
 	subscription, err := NewSubscription(parentCtx, subscriptionConfig, hypermassProfile.Auth,
-		time.Duration(0), subscription_status.NewInitialState(time.Duration(0)))
+		time.Duration(0), subscription_status.NewInitialState(time.Duration(0)), hashMismatch{})
 
 	if err != nil {
 		if subscription != nil {

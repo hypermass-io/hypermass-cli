@@ -42,7 +42,12 @@ type Subscription struct {
 
 	// RequestRestart is called once, to requests that this subscription be stopped, and a replacement created after a delay
 	RequestRestart func(streamId string, err error)
-	stopOnce       sync.Once
+
+	stopOnce sync.Once
+
+	// hashMismatch is the payload that last failed its hash check, and how many times in a row. A replacement started
+	// because of a mismatch carries it on, so each retry of the same payload waits longer
+	hashMismatch hashMismatch
 
 	//ProcessorsWG a WG tracking the processors such as RetryingInfoChannelSubscription and StartFileQueueProcessor
 	ProcessorsWG sync.WaitGroup
@@ -60,6 +65,7 @@ func NewSubscription(
 	auth config.HypermassAuth,
 	startupDelay time.Duration,
 	startupState subscription_status.SubscriptionReportingState,
+	hashMismatch hashMismatch,
 ) (*Subscription, error) {
 
 	ctx, cancel := context.WithCancel(parentCtx)
@@ -87,6 +93,7 @@ func NewSubscription(
 		FileQueue:                 make(chan *messages.PayloadNotificationMessage, 100000),
 		Writer:                    payload_writers.GetPayloadWriter(streamConfig.WriterType, streamConfig.Key),
 		StartPoint:                streamConfig.StartPoint,
+		hashMismatch:              hashMismatch,
 		ReportingState:            startupState,
 	}
 
@@ -319,6 +326,11 @@ func (s *Subscription) StartFileQueueProcessor() {
 				} else if payloadRemoved {
 					log.Printf("Payload %s on stream %s was removed by its publisher, skipping it", msg.PayloadId, msg.StreamId)
 				} else if downloadPayloadErr != nil {
+					var mismatch *app_errors.PayloadHashMismatchError
+					if errors.As(downloadPayloadErr, &mismatch) {
+						s.countHashMismatch(mismatch)
+					}
+
 					log.Printf("Failed to download: %s\n", downloadPayloadErr)
 					s.restartSubscriptionWithReason(downloadPayloadErr)
 					return //exit the "StartFileQueueProcessor" loop completely - this instance won't recover
@@ -336,6 +348,7 @@ func (s *Subscription) StartFileQueueProcessor() {
 					fmt.Printf("Received payload %s for stream %s \n", msg.PayloadId, msg.StreamId)
 				}
 				s.LastPayloadId = msg.PayloadId
+				s.hashMismatch = hashMismatch{}
 			}
 
 		case <-s.Ctx.Done():
@@ -355,4 +368,20 @@ func determineMessageType(message []byte) string {
 	}
 
 	return data.Type
+}
+
+type hashMismatch struct {
+	payloadId string
+	count     int
+}
+
+// countHashMismatch records another mismatch of the payload on the error, starting again for a different payload.
+func (s *Subscription) countHashMismatch(mismatch *app_errors.PayloadHashMismatchError) {
+	count := 1
+	if s.hashMismatch.payloadId == mismatch.PayloadId {
+		count = s.hashMismatch.count + 1
+	}
+
+	s.hashMismatch = hashMismatch{payloadId: mismatch.PayloadId, count: count}
+	mismatch.Mismatches = count
 }

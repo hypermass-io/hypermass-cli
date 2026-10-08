@@ -44,10 +44,9 @@ func (s *FolderWithMetadataStrategy) WritePayload(resp *http.Response, msg messa
 	//close the open http and file handles
 	out.Close()
 
+	//logged by the subscription, which reports every failed download
 	if err != nil {
 		_ = os.RemoveAll(tempFolder)
-		log.Println(err)
-		log.Println("Unable to write payload to temporary file")
 		return err
 	}
 
@@ -59,9 +58,10 @@ func (s *FolderWithMetadataStrategy) WritePayload(resp *http.Response, msg messa
 	}
 
 	//after the metadata is written, so writing it does not move the folder's time on
+	//a retry would get the same published time, so the payload is delivered with the folder's own time instead
 	err = updateFileMetadataLastModified(msg.PublishedTimestamp, tempFolder)
 	if err != nil {
-		log.Fatalf("Error modifying timestamp, cannot guarentee ordering: %v", err)
+		log.Printf("Unable to set the published time on payload %s, keeping the folder's own time: %v", msg.PayloadId, err)
 	}
 
 	err = moveTempToFinalPath(tempFolder, finalFolder)

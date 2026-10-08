@@ -52,16 +52,16 @@ func (s *FilePerPayloadStrategy) WritePayload(resp *http.Response, msg messages.
 	// IMPORTANT: Close it here manually (not a defer) so the Windows files are not locked subsequently.
 	out.Close()
 
+	//logged by the subscription, which reports every failed download
 	if err != nil {
 		_ = os.Remove(tempOutputPath)
-		log.Println(err)
-		log.Println("Unable to write payload to temporary file")
 		return err
 	}
 
+	//a retry would get the same published time, so the payload is delivered with the file's own time instead
 	err = updateFileMetadataLastModified(msg.PublishedTimestamp, tempOutputPath)
 	if err != nil {
-		log.Printf("Error modifying timestamp, cannot guarentee ordering: %v\n", err)
+		log.Printf("Unable to set the published time on payload %s, keeping the file's own time: %v", msg.PayloadId, err)
 	}
 
 	err = moveTempToFinalPath(tempOutputPath, finalOutputPath)

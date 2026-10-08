@@ -136,6 +136,40 @@ func (e *ConnectionLostError) Summary() string {
 	return "reconnecting"
 }
 
+// PayloadHashMismatchError indicates that a downloaded payload did not match the hash the info channel announced. The
+// stream waits on the payload, longer after each mismatch in a row, so a payload that never matches is not downloaded
+// over and over at the subscriber's expense.
+type PayloadHashMismatchError struct {
+	PayloadId string
+	Expected  string
+	Actual    string
+
+	// Mismatches counts this payload's mismatches in a row, set by the subscription that tracks them
+	Mismatches int
+}
+
+func (e *PayloadHashMismatchError) Error() string {
+	return fmt.Sprintf("payload %s does not match its sha256 hash (expected %s, downloaded %s) - restart the sync to retry sooner",
+		e.PayloadId, e.Expected, e.Actual)
+}
+
+func (e *PayloadHashMismatchError) RetryAfter() time.Duration {
+	switch {
+	case e.Mismatches <= 1:
+		return time.Minute
+	case e.Mismatches == 2:
+		return 10 * time.Minute
+	case e.Mismatches == 3:
+		return time.Hour
+	default:
+		return 24 * time.Hour
+	}
+}
+
+func (e *PayloadHashMismatchError) Summary() string {
+	return "a download did not match its hash"
+}
+
 // DownloadFailedError indicates that the download failed
 type DownloadFailedError struct {
 	Message string

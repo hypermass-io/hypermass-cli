@@ -80,3 +80,19 @@ func readMetadata(t *testing.T, folder string, payloadId string) string {
 	}
 	return string(data)
 }
+
+// A published time that cannot be read still delivers the payload: a retry would get the same time, so stopping the
+// stream for it would only block it.
+func TestAnUnreadablePublishedTimeStillDeliversThePayload(t *testing.T) {
+	folder := t.TempDir()
+	msg := messages.PayloadNotificationMessage{PayloadId: "p_001m4dh7t0aaaaaaaaaaaaaaaa", StreamId: "_254gGE43g",
+		FileExtension: "json", PublishedTimestamp: "not a time", ValidationType: "basic"}
+
+	for _, writer := range []PayloadWriterStrategy{&FilePerPayloadStrategy{}, &FolderWithMetadataStrategy{}} {
+		err := writer.WritePayload(&http.Response{Body: io.NopCloser(strings.NewReader("{}"))}, msg, folder)
+
+		if present, _ := writer.IsPresent(msg, folder); err != nil || !present {
+			t.Errorf("%T: expected the payload delivered, got present: %v, error: %v", writer, present, err)
+		}
+	}
+}

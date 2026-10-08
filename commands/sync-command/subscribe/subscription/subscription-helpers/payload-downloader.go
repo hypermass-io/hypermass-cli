@@ -1,6 +1,7 @@
 package subscription_helpers
 
 import (
+	"errors"
 	"fmt"
 	"hypermass-cli/app_constants"
 	"hypermass-cli/app_errors"
@@ -43,6 +44,12 @@ func DownloadPayload(auth config.HypermassAuth, folderPath string, writer payloa
 
 	if resp.StatusCode == http.StatusOK {
 		err := writer.WritePayload(resp, msg, folderPath)
+
+		//kept as it is, so the subscription can count mismatches and back off further each time
+		var mismatch *app_errors.PayloadHashMismatchError
+		if errors.As(err, &mismatch) {
+			return mismatch
+		}
 
 		if err != nil {
 			return &app_errors.DownloadFailedError{

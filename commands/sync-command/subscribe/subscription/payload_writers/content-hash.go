@@ -3,7 +3,7 @@ package payload_writers
 import (
 	"crypto/sha256"
 	"encoding/base64"
-	"fmt"
+	"hypermass-cli/app_errors"
 	"hypermass-cli/commands/sync-command/subscribe/messages"
 	"io"
 	"log"
@@ -31,8 +31,7 @@ func copyVerified(out io.Writer, body io.Reader, msg messages.PayloadNotificatio
 
 	actual := base64.StdEncoding.EncodeToString(hash.Sum(nil))
 	if actual != *msg.ContentHash {
-		return fmt.Errorf("payload %s does not match its sha256 hash (expected %s, downloaded %s)",
-			msg.PayloadId, *msg.ContentHash, actual)
+		return &app_errors.PayloadHashMismatchError{PayloadId: msg.PayloadId, Expected: *msg.ContentHash, Actual: actual}
 	}
 	return nil
 }
