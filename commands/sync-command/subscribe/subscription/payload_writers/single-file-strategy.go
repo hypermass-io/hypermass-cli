@@ -21,11 +21,15 @@ const (
 	pollInterval = 100 * time.Millisecond
 )
 
+func (s *FilePerPayloadStrategy) IsPresent(msg messages.PayloadNotificationMessage, folderPath string) (bool, error) {
+	return pathExists(filepath.Join(folderPath, msg.PayloadId+"."+msg.FileExtension))
+}
+
 func (s *FilePerPayloadStrategy) WritePayload(resp *http.Response, msg messages.PayloadNotificationMessage, folderPath string) error {
 	filename := msg.PayloadId + "." + msg.FileExtension
 	finalOutputPath := filepath.Join(folderPath, filename)
-	tempOutputFolderPath := filepath.Join(folderPath, ".hypermass", "temporary")
-	tempOutputPath := filepath.Join(tempOutputFolderPath, filename)
+	tempOutputPath := temporaryPath(folderPath, filename)
+	tempOutputFolderPath := filepath.Dir(tempOutputPath)
 
 	// Create the temp folder if needed
 	err := os.MkdirAll(tempOutputFolderPath, 0755)

@@ -46,7 +46,7 @@ up; a new key is easy to create at https://hypermass.io/access-keys.
 ## Key Features
 * **File-Based Configuration:** Human-readable YAML setup. Easy to back up, version control, etc. No complex database or registry entries required.
 * **Atomic File Delivery:** The "Write-and-Move" strategy ensures that if a file appears in your target folder, it is 100% complete and verified. 
-* **Flexible Receiver Strategies:** Choose between `file-per-payload` for simplicity or `folders-with-metadata` for rich data handling.
+* **Flexible Receiver Strategies:** Choose between `file-per-payload` for simplicity or `folder-with-metadata` for rich data handling.
 * **Production-Grade Security:** Native SSL support and secure token-based authentication out of the box.
 
 ## Documentation

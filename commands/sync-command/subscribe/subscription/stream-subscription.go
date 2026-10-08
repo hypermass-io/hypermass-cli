@@ -298,15 +298,25 @@ func (s *Subscription) StartFileQueueProcessor() {
 		case msg := <-s.FileQueue:
 			// only respond to known message types
 			if msg.Type == "PayloadNotificationMessage" {
-				// Process the message
-				fmt.Printf("Downloading payload %s for stream %s \n", msg.PayloadId, msg.StreamId)
+				present, presentErr := s.Writer.IsPresent(*msg, s.FolderPath)
+				if presentErr != nil {
+					log.Printf("Unable to check for payload %s: %s\n", msg.PayloadId, presentErr)
+					s.restartSubscriptionWithReason(presentErr)
+					return //exit the "StartFileQueueProcessor" loop completely - this instance won't recover
+				}
 
-				downloadPayloadErr := subscriptionhelpers.DownloadPayload(s.Auth, s.FolderPath, s.Writer, *msg)
+				var downloadPayloadErr error
+				if !present {
+					fmt.Printf("Downloading payload %s for stream %s \n", msg.PayloadId, msg.StreamId)
+					downloadPayloadErr = subscriptionhelpers.DownloadPayload(s.Auth, s.FolderPath, s.Writer, *msg)
+				}
 
 				var removed *app_errors.PayloadRemovedError
 				payloadRemoved := errors.As(downloadPayloadErr, &removed)
 
-				if payloadRemoved {
+				if present {
+					log.Printf("Payload %s on stream %s is already in the folder, leaving it as it is", msg.PayloadId, msg.StreamId)
+				} else if payloadRemoved {
 					log.Printf("Payload %s on stream %s was removed by its publisher, skipping it", msg.PayloadId, msg.StreamId)
 				} else if downloadPayloadErr != nil {
 					log.Printf("Failed to download: %s\n", downloadPayloadErr)
@@ -322,7 +332,7 @@ func (s *Subscription) StartFileQueueProcessor() {
 					return //exit the "StartFileQueueProcessor" loop completely - this instance won't recover
 				}
 
-				if !payloadRemoved {
+				if !present && !payloadRemoved {
 					fmt.Printf("Received payload %s for stream %s \n", msg.PayloadId, msg.StreamId)
 				}
 				s.LastPayloadId = msg.PayloadId
