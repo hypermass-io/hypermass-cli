@@ -16,6 +16,11 @@ import (
 )
 
 func SyncRunner(hypermassProfile config.HypermassProfile) {
+	if err := refuseIfRunning(synclock.DialSync); err != nil {
+		log.Fatal(err)
+	}
+	clearTemporaryFolders(hypermassProfile.Configuration.SubscriptionConfigurations)
+
 	commandBus := synclock.NewCommandBus()
 	controlServer, err := synclock.NewControlServer()
 	if err != nil {
