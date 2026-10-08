@@ -2,7 +2,6 @@ package payload_writers
 
 import (
 	"hypermass-cli/commands/sync-command/subscribe/messages"
-	"io"
 	"log"
 	"net/http"
 	"os"
@@ -48,12 +47,13 @@ func (s *FilePerPayloadStrategy) WritePayload(resp *http.Response, msg messages.
 	}
 
 	// Stream to temp file
-	_, err = io.Copy(out, resp.Body)
+	err = copyVerified(out, resp.Body, msg)
 
 	// IMPORTANT: Close it here manually (not a defer) so the Windows files are not locked subsequently.
 	out.Close()
 
 	if err != nil {
+		_ = os.Remove(tempOutputPath)
 		log.Println(err)
 		log.Println("Unable to write payload to temporary file")
 		return err

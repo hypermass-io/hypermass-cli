@@ -14,7 +14,7 @@ import (
 // Each payload's folder holds the payload and a metadata.json carrying the info channel's fields.
 func TestAPayloadFolderHoldsThePayloadAndItsMetadata(t *testing.T) {
 	folder := t.TempDir()
-	algorithm, hash := "sha256", "47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU="
+	algorithm, hash := "sha256", "RBNvo1WzZ4oRRq0W9+hknpT7T8If536DEMBg9hyq/4o="
 
 	write(t, folder, messages.PayloadNotificationMessage{
 		PayloadId: "p_001m4dh7t0hh8xpngcphahtex2g", StreamId: "_254gGE43g", FileExtension: "json",
@@ -35,7 +35,7 @@ func TestAPayloadFolderHoldsThePayloadAndItsMetadata(t *testing.T) {
   "payloadFile": "payload.json",
   "bytesCount": 2,
   "contentHashAlgorithm": "sha256",
-  "contentHash": "47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=",
+  "contentHash": "RBNvo1WzZ4oRRq0W9+hknpT7T8If536DEMBg9hyq/4o=",
   "validationType": "schema"
 }`
 	if metadata := readMetadata(t, folder, "p_001m4dh7t0hh8xpngcphahtex2g"); metadata != expected {

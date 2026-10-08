@@ -3,7 +3,6 @@ package payload_writers
 import (
 	"encoding/json"
 	"hypermass-cli/commands/sync-command/subscribe/messages"
-	"io"
 	"log"
 	"net/http"
 	"os"
@@ -40,12 +39,13 @@ func (s *FolderWithMetadataStrategy) WritePayload(resp *http.Response, msg messa
 	}
 
 	// Stream to temp file
-	_, err = io.Copy(out, resp.Body)
+	err = copyVerified(out, resp.Body, msg)
 
 	//close the open http and file handles
 	out.Close()
 
 	if err != nil {
+		_ = os.RemoveAll(tempFolder)
 		log.Println(err)
 		log.Println("Unable to write payload to temporary file")
 		return err
